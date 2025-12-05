@@ -1,0 +1,13 @@
+{
+  "name": "oscilloplot",
+  "version": "1.0.0",
+  "description": "High-performance oscilloscope XY audio generator",
+  "homepage": "https://github.com/jfalvarez1/oscilloplot",
+  "license": "MIT",
+  "dependencies": [
+    "sdl2",
+    "portaudio",
+    "libsndfile",
+    "glm"
+  ]
+}

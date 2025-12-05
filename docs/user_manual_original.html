@@ -1,0 +1,3791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oscilloplot User Manual</title>
+    <style>
+        :root {
+            --phosphor-green: #00ff41;
+            --phosphor-dim: #00aa2a;
+            --phosphor-bright: #33ff66;
+            --phosphor-glow: rgba(0, 255, 65, 0.4);
+            --screen-dark: #0a0a0a;
+            --screen-bg: #0d1a0d;
+            --grid-color: rgba(0, 255, 65, 0.15);
+            --grid-bright: rgba(0, 255, 65, 0.25);
+            --text-secondary: #00cc33;
+            --warning-color: #ffaa00;
+            --danger-color: #ff4444;
+            --link-color: #00ffaa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            line-height: 1.6;
+            color: var(--phosphor-green);
+            background-color: var(--screen-dark);
+            margin: 0;
+            padding: 0;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated Waveform Background */
+        .waveform-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .wave {
+            position: absolute;
+            width: 200%;
+            height: 100%;
+            left: -50%;
+        }
+
+        .wave-1 {
+            animation: waveMove1 20s linear infinite;
+        }
+
+        .wave-2 {
+            animation: waveMove2 25s linear infinite;
+            opacity: 0.5;
+        }
+
+        .wave-3 {
+            animation: waveMove3 30s linear infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes waveMove1 {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(50%); }
+        }
+
+        @keyframes waveMove2 {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        @keyframes waveMove3 {
+            0% { transform: translateX(-25%); }
+            100% { transform: translateX(25%); }
+        }
+
+        /* Grid Overlay */
+        .grid-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+                linear-gradient(var(--grid-bright) 2px, transparent 2px),
+                linear-gradient(90deg, var(--grid-bright) 2px, transparent 2px);
+            background-size:
+                50px 50px,
+                50px 50px,
+                250px 250px,
+                250px 250px;
+            background-position: -1px -1px;
+        }
+
+        /* Scanline Effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1) 0px,
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+        }
+
+        /* CRT Screen Edge Vignette */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 999;
+            pointer-events: none;
+            background: radial-gradient(
+                ellipse at center,
+                transparent 0%,
+                transparent 60%,
+                rgba(0, 0, 0, 0.4) 100%
+            );
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header - Oscilloscope Style */
+        header {
+            background: linear-gradient(180deg, #1a2a1a 0%, var(--screen-dark) 100%);
+            border: 3px solid var(--phosphor-dim);
+            border-radius: 15px;
+            padding: 40px 20px;
+            text-align: center;
+            margin: 20px;
+            position: relative;
+            box-shadow:
+                0 0 30px var(--phosphor-glow),
+                inset 0 0 60px rgba(0, 255, 65, 0.05);
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            border: 1px solid var(--grid-color);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        header h1 {
+            font-size: 4em;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 8px;
+            text-shadow:
+                0 0 10px var(--phosphor-green),
+                0 0 20px var(--phosphor-green),
+                0 0 40px var(--phosphor-glow);
+            animation: flicker 4s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.8; }
+            94% { opacity: 1; }
+            97% { opacity: 0.9; }
+            98% { opacity: 1; }
+        }
+
+        header .subtitle {
+            font-size: 1.3em;
+            opacity: 0.8;
+            margin-top: 15px;
+            letter-spacing: 3px;
+            color: var(--phosphor-dim);
+        }
+
+        header .version {
+            font-size: 1em;
+            opacity: 0.6;
+            margin-top: 10px;
+            color: var(--text-secondary);
+        }
+
+        /* Oscilloscope Brand Labels */
+        .brand-label {
+            position: absolute;
+            font-size: 0.7em;
+            color: var(--phosphor-dim);
+            opacity: 0.5;
+            letter-spacing: 2px;
+        }
+
+        .brand-label.top-left {
+            top: 15px;
+            left: 20px;
+        }
+
+        .brand-label.top-right {
+            top: 15px;
+            right: 20px;
+        }
+
+        /* Navigation - Control Panel Style */
+        nav {
+            background: linear-gradient(180deg, #151515 0%, #0a0a0a 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid var(--phosphor-dim);
+            box-shadow:
+                0 0 20px rgba(0, 255, 65, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            margin-bottom: 30px;
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+        }
+
+        nav h3 {
+            margin: 0 0 15px 0;
+            color: var(--phosphor-bright);
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            border-bottom: 1px solid var(--grid-color);
+            padding-bottom: 10px;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        nav ul li a {
+            color: var(--phosphor-green);
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid var(--grid-color);
+            display: inline-block;
+            transition: all 0.2s;
+            font-size: 0.85em;
+        }
+
+        nav ul li a:hover {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: var(--phosphor-green);
+            box-shadow: 0 0 15px var(--phosphor-glow);
+            text-shadow: 0 0 10px var(--phosphor-green);
+        }
+
+        /* Sections - CRT Display Panels */
+        section {
+            background: linear-gradient(180deg, rgba(20, 30, 20, 0.9) 0%, rgba(10, 15, 10, 0.95) 100%);
+            border-radius: 12px;
+            border: 2px solid var(--phosphor-dim);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow:
+                0 0 30px rgba(0, 255, 65, 0.08),
+                inset 0 0 100px rgba(0, 255, 65, 0.02);
+            position: relative;
+        }
+
+        section::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            right: 5px;
+            bottom: 5px;
+            border: 1px solid rgba(0, 255, 65, 0.1);
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        h2 {
+            color: var(--phosphor-bright);
+            border-bottom: 2px solid var(--phosphor-dim);
+            padding-bottom: 15px;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 0 0 20px var(--phosphor-glow);
+            font-size: 1.5em;
+        }
+
+        h3 {
+            color: var(--phosphor-green);
+            margin-top: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.1em;
+        }
+
+        h4 {
+            color: var(--text-secondary);
+            margin-top: 25px;
+            background: rgba(0, 255, 65, 0.08);
+            padding: 12px 18px;
+            border-left: 3px solid var(--phosphor-green);
+            font-size: 1em;
+        }
+
+        p {
+            color: var(--phosphor-dim);
+        }
+
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        a:hover {
+            text-shadow: 0 0 10px var(--link-color);
+        }
+
+        ul, ol {
+            color: var(--phosphor-dim);
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        strong {
+            color: var(--phosphor-bright);
+        }
+
+        /* Tables - Data Display Style */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid var(--grid-color);
+        }
+
+        th {
+            background: rgba(0, 255, 65, 0.15);
+            color: var(--phosphor-bright);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85em;
+        }
+
+        tr:nth-child(even) {
+            background: rgba(0, 255, 65, 0.03);
+        }
+
+        tr:hover {
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        td {
+            color: var(--phosphor-dim);
+        }
+
+        /* Code blocks - Terminal Style */
+        code {
+            background: rgba(0, 255, 65, 0.1);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            color: var(--phosphor-bright);
+            border: 1px solid var(--grid-color);
+        }
+
+        pre {
+            background: #050505;
+            color: var(--phosphor-green);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            border: 2px solid var(--phosphor-dim);
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border: none;
+        }
+
+        /* Tips, Warnings, Notes - Status Indicators */
+        .tip {
+            background: rgba(0, 255, 170, 0.1);
+            border-left: 4px solid var(--link-color);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            color: var(--phosphor-dim);
+        }
+
+        .tip::before {
+            content: "[TIP] ";
+            font-weight: bold;
+            color: var(--link-color);
+        }
+
+        .warning {
+            background: rgba(255, 170, 0, 0.1);
+            border-left: 4px solid var(--warning-color);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            color: var(--phosphor-dim);
+        }
+
+        .warning::before {
+            content: "[WARNING] ";
+            font-weight: bold;
+            color: var(--warning-color);
+        }
+
+        .note {
+            background: rgba(0, 255, 65, 0.1);
+            border-left: 4px solid var(--phosphor-green);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            color: var(--phosphor-dim);
+        }
+
+        .note::before {
+            content: "[NOTE] ";
+            font-weight: bold;
+            color: var(--phosphor-green);
+        }
+
+        /* Formula boxes - Readout Display */
+        .formula {
+            background: #050505;
+            border: 2px solid var(--phosphor-dim);
+            padding: 18px 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-family: 'Georgia', serif;
+            text-align: center;
+            font-size: 1.2em;
+            color: var(--phosphor-bright);
+            box-shadow:
+                0 0 20px rgba(0, 255, 65, 0.1),
+                inset 0 0 30px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 0 10px var(--phosphor-glow);
+        }
+
+        /* Feature cards - Module Panels */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .feature-card {
+            background: rgba(0, 255, 65, 0.03);
+            border: 1px solid var(--grid-color);
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--phosphor-green);
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.15);
+            transform: translateY(-3px);
+        }
+
+        .feature-card h4 {
+            background: none;
+            padding: 0;
+            border: none;
+            color: var(--phosphor-bright);
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-left: none;
+        }
+
+        .feature-card p {
+            margin-bottom: 0;
+            font-size: 0.9em;
+        }
+
+        /* Parameter lists - Settings Panel */
+        .param-list {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid var(--grid-color);
+        }
+
+        .param-item {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--grid-color);
+        }
+
+        .param-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .param-name {
+            font-weight: bold;
+            color: var(--phosphor-bright);
+            font-size: 1.05em;
+        }
+
+        .param-range {
+            color: var(--text-secondary);
+            font-size: 0.85em;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        /* Screenshots */
+        .screenshot {
+            max-width: 100%;
+            border: 2px solid var(--phosphor-dim);
+            border-radius: 8px;
+            margin: 15px 0;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .screenshot-item {
+            text-align: center;
+        }
+
+        .screenshot-item img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 2px solid var(--phosphor-dim);
+        }
+
+        .screenshot-item p {
+            margin-top: 10px;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+
+        /* Keyboard shortcuts - Button Style */
+        kbd {
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: 1px solid var(--phosphor-dim);
+            border-radius: 5px;
+            box-shadow:
+                0 2px 0 var(--phosphor-dim),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            display: inline-block;
+            padding: 4px 10px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85em;
+            color: var(--phosphor-green);
+        }
+
+        /* Steps - Sequence Display */
+        .steps {
+            counter-reset: step-counter;
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .steps li {
+            counter-increment: step-counter;
+            padding: 18px 18px 18px 70px;
+            position: relative;
+            margin-bottom: 12px;
+            background: rgba(0, 255, 65, 0.05);
+            border-radius: 8px;
+            border: 1px solid var(--grid-color);
+        }
+
+        .steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 35px;
+            height: 35px;
+            background: rgba(0, 255, 65, 0.2);
+            border: 2px solid var(--phosphor-green);
+            color: var(--phosphor-bright);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 0 15px var(--phosphor-glow);
+        }
+
+        /* Footer - Status Bar */
+        footer {
+            background: linear-gradient(180deg, #151515 0%, #0a0a0a 100%);
+            border: 2px solid var(--phosphor-dim);
+            border-radius: 10px;
+            color: var(--phosphor-dim);
+            padding: 30px;
+            text-align: center;
+            margin: 30px 20px 20px 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+        }
+
+        footer p {
+            margin: 8px 0;
+        }
+
+        footer strong {
+            color: var(--phosphor-bright);
+            letter-spacing: 3px;
+        }
+
+        /* Waveform Indicator Animation */
+        .waveform-indicator {
+            display: inline-block;
+            width: 100px;
+            height: 30px;
+            margin: 10px 0;
+        }
+
+        .waveform-indicator svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .waveform-indicator path {
+            stroke: var(--phosphor-green);
+            stroke-width: 2;
+            fill: none;
+            animation: wavePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes wavePulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.5em;
+                letter-spacing: 4px;
+            }
+
+            nav ul {
+                flex-direction: column;
+            }
+
+            section {
+                padding: 20px;
+            }
+
+            table {
+                font-size: 0.8em;
+            }
+
+            th, td {
+                padding: 8px 10px;
+            }
+
+            .steps li {
+                padding-left: 60px;
+            }
+
+            .steps li::before {
+                width: 30px;
+                height: 30px;
+                font-size: 0.9em;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            .waveform-bg,
+            .grid-overlay,
+            .scanlines,
+            .vignette,
+            nav {
+                display: none;
+            }
+
+            body {
+                background: white;
+                color: black;
+            }
+
+            section {
+                box-shadow: none;
+                border: 1px solid #ccc;
+                page-break-inside: avoid;
+                background: white;
+            }
+
+            h2, h3, h4, p, li, td {
+                color: black;
+            }
+
+            th {
+                background: #eee;
+                color: black;
+            }
+        }
+
+        /* Glowing cursor animation for active elements */
+        .glow-cursor {
+            animation: cursorBlink 1s step-end infinite;
+        }
+
+        @keyframes cursorBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Status LED indicators */
+        .status-led {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: ledPulse 2s ease-in-out infinite;
+        }
+
+        .status-led.green {
+            background: var(--phosphor-green);
+            box-shadow: 0 0 10px var(--phosphor-green);
+        }
+
+        .status-led.yellow {
+            background: var(--warning-color);
+            box-shadow: 0 0 10px var(--warning-color);
+        }
+
+        @keyframes ledPulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        /* Interactive Demo Styles */
+        .interactive-demo {
+            background: #050505;
+            border: 2px solid var(--phosphor-dim);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 25px 0;
+            box-shadow:
+                0 0 30px rgba(0, 255, 65, 0.1),
+                inset 0 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .demo-title {
+            color: var(--phosphor-bright);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--grid-color);
+        }
+
+        .demo-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .canvas-container {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .scope-canvas {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #020202;
+            border: 2px solid var(--phosphor-dim);
+            border-radius: 8px;
+            box-shadow: inset 0 0 30px rgba(0, 255, 65, 0.05);
+        }
+
+        .controls-container {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(0, 255, 65, 0.03);
+            border-radius: 6px;
+            border: 1px solid var(--grid-color);
+        }
+
+        .control-group-title {
+            color: var(--phosphor-green);
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            color: var(--phosphor-dim);
+            font-size: 0.85em;
+            min-width: 80px;
+        }
+
+        .control-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: #1a1a1a;
+            border-radius: 3px;
+            outline: none;
+            border: 1px solid var(--grid-color);
+        }
+
+        .control-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--phosphor-green);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--phosphor-glow);
+        }
+
+        .control-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--phosphor-green);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px var(--phosphor-glow);
+        }
+
+        .control-value {
+            color: var(--phosphor-bright);
+            font-size: 0.85em;
+            min-width: 45px;
+            text-align: right;
+            font-family: 'Consolas', monospace;
+        }
+
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .preset-btn {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--phosphor-dim);
+            color: var(--phosphor-green);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            font-family: 'Consolas', monospace;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: rgba(0, 255, 65, 0.25);
+            border-color: var(--phosphor-green);
+            box-shadow: 0 0 10px var(--phosphor-glow);
+        }
+
+        .animate-btn {
+            background: rgba(0, 255, 65, 0.15);
+            border: 1px solid var(--phosphor-green);
+            color: var(--phosphor-bright);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            cursor: pointer;
+            font-family: 'Consolas', monospace;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .animate-btn:hover {
+            background: rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 15px var(--phosphor-glow);
+        }
+
+        .animate-btn.active {
+            background: var(--phosphor-green);
+            color: #000;
+        }
+
+        .demo-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+        }
+
+        .demo-info code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: var(--phosphor-bright);
+        }
+
+        @media (max-width: 768px) {
+            .demo-container {
+                flex-direction: column;
+            }
+
+            .canvas-container, .controls-container {
+                min-width: 100%;
+            }
+        }
+
+        /* Effect tabs */
+        .effect-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .effect-tab {
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid var(--grid-color);
+            color: var(--phosphor-dim);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            cursor: pointer;
+            font-family: 'Consolas', monospace;
+            transition: all 0.2s;
+        }
+
+        .effect-tab:hover {
+            background: rgba(0, 255, 65, 0.15);
+            border-color: var(--phosphor-dim);
+        }
+
+        .effect-tab.active {
+            background: rgba(0, 255, 65, 0.25);
+            border-color: var(--phosphor-green);
+            color: var(--phosphor-bright);
+            box-shadow: 0 0 8px var(--phosphor-glow);
+        }
+
+        .effect-panel {
+            display: none;
+            padding: 10px 0;
+        }
+
+        .effect-panel.active {
+            display: block;
+        }
+
+        /* Checkbox styling */
+        .control-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--phosphor-green);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Waveform Background -->
+    <div class="waveform-bg">
+        <svg class="wave wave-1" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path fill="none" stroke="rgba(0,255,65,0.3)" stroke-width="2" d="M0,160 C180,100 360,220 540,160 C720,100 900,220 1080,160 C1260,100 1440,220 1620,160 C1800,100 1980,220 2160,160 C2340,100 2520,220 2700,160 C2880,100 3060,220 3240,160"></path>
+        </svg>
+        <svg class="wave wave-2" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path fill="none" stroke="rgba(0,255,65,0.2)" stroke-width="2" d="M0,200 C120,150 240,250 360,200 C480,150 600,250 720,200 C840,150 960,250 1080,200 C1200,150 1320,250 1440,200 C1560,150 1680,250 1800,200 C1920,150 2040,250 2160,200 C2280,150 2400,250 2520,200 C2640,150 2760,250 2880,200"></path>
+        </svg>
+        <svg class="wave wave-3" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path fill="none" stroke="rgba(0,255,65,0.15)" stroke-width="1.5" d="M0,140 Q90,180 180,140 T360,140 T540,140 T720,140 T900,140 T1080,140 T1260,140 T1440,140 T1620,140 T1800,140 T1980,140 T2160,140 T2340,140 T2520,140 T2700,140 T2880,140"></path>
+        </svg>
+    </div>
+
+    <!-- Grid Overlay -->
+    <div class="grid-overlay"></div>
+
+    <!-- Scanlines -->
+    <div class="scanlines"></div>
+
+    <!-- Vignette Effect -->
+    <div class="vignette"></div>
+
+    <header>
+        <span class="brand-label top-left">MODEL XY-2000</span>
+        <span class="brand-label top-right">DIGITAL STORAGE</span>
+        <h1>OSCILLOPLOT</h1>
+        <div class="subtitle">XY AUDIO OSCILLOSCOPE GENERATOR</div>
+        <div class="version">// COMPLETE USER MANUAL v2.0 //</div>
+        <div class="waveform-indicator">
+            <svg viewBox="0 0 100 30">
+                <path d="M0,15 Q12.5,5 25,15 T50,15 T75,15 T100,15"></path>
+            </svg>
+        </div>
+    </header>
+
+    <div class="container">
+        <nav>
+            <h3><span class="status-led green"></span>Navigation Control</h3>
+            <ul>
+                <li><a href="#introduction">Introduction</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#quick-start">Quick Start</a></li>
+                <li><a href="#interface">Interface Overview</a></li>
+                <li><a href="#data-sources">Data Sources</a></li>
+                <li><a href="#audio-params">Audio Parameters</a></li>
+                <li><a href="#effects">Effects Reference</a></li>
+                <li><a href="#preview">Live Preview</a></li>
+                <li><a href="#pattern-generators">Pattern Generators</a></li>
+                <li><a href="#harmonics-guide">Sum of Harmonics Guide</a></li>
+                <li><a href="#spiral-guide">Archimedean Spiral Guide</a></li>
+                <li><a href="#image-converter">Image Converter</a></li>
+                <li><a href="#file-formats">File Formats</a></li>
+                <li><a href="#oscilloscope">Oscilloscope Setup</a></li>
+                <li><a href="#optimized">Optimized Version</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </nav>
+
+        <!-- Introduction -->
+        <section id="introduction">
+            <h2>// Introduction //</h2>
+            <p>
+                <strong>Oscilloplot</strong> is a powerful Python GUI application for generating XY audio signals
+                that can be displayed on a real analog oscilloscope. Create mesmerizing visual patterns, Lissajous
+                figures, spirals, and custom drawings that come to life on your oscilloscope's phosphor screen!
+            </p>
+
+            <h3>Key Features</h3>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Real-Time Preview</h4>
+                    <p>Classic CRT green phosphor display with density-based rendering shows your patterns in real-time.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Audio Output</h4>
+                    <p>Generate stereo audio signals (Left = X, Right = Y) for real oscilloscope display.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Multiple Generators</h4>
+                    <p>Sum of Harmonics, Archimedean Spirals, Random Harmonics, Freehand Drawing, and more.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>15+ Effects</h4>
+                    <p>Rotation, fade, shrink, wavy, tremolo, ring mod, echo, kaleidoscope, distortion, and more.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Image Converter</h4>
+                    <p>Convert photos and drawings to oscilloscope-ready coordinates.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>WAV Export</h4>
+                    <p>Save your generated audio as stereo WAV files for later use.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Installation -->
+        <section id="installation">
+            <h2>// Installation //</h2>
+
+            <h3>Prerequisites</h3>
+            <ul>
+                <li>Python 3.8 or higher</li>
+                <li>A stereo audio output device</li>
+                <li>(Optional) An analog oscilloscope in XY mode</li>
+            </ul>
+
+            <h3>Install Dependencies</h3>
+            <p>Using the requirements file:</p>
+            <pre><code>pip install -r requirements.txt</code></pre>
+
+            <p>Or install manually:</p>
+            <pre><code>pip install numpy>=1.20.0 sounddevice>=0.4.0 matplotlib>=3.3.0 soundfile>=0.10.0</code></pre>
+
+            <p>For the image converter, you'll also need:</p>
+            <pre><code>pip install opencv-python</code></pre>
+
+            <div class="tip">
+                Make sure you have a working audio output device before running the application.
+                The application uses the system's default audio output.
+            </div>
+        </section>
+
+        <!-- Quick Start -->
+        <section id="quick-start">
+            <h2>// Quick Start Guide //</h2>
+
+            <h3>Standard Version</h3>
+            <pre><code>python oscilloscope_gui.py</code></pre>
+
+            <h3>Optimized Version (Recommended)</h3>
+            <pre><code>python oscilloscope_gui_optimized.py</code></pre>
+
+            <h3>Getting Started in 5 Steps</h3>
+            <ol class="steps">
+                <li><strong>Launch the application</strong> - Run either version of the GUI</li>
+                <li><strong>Load or generate a pattern</strong> - Click "Generate Test Pattern" for a quick demo, or try "Sum of Harmonics" for Lissajous figures</li>
+                <li><strong>Adjust parameters</strong> - Use the control panel on the left to modify audio settings and effects</li>
+                <li><strong>Click "Apply & Generate"</strong> - This processes your pattern with all selected effects</li>
+                <li><strong>Click "Play Audio"</strong> - Listen to the output and watch the live preview</li>
+            </ol>
+
+            <div class="note">
+                For real oscilloscope display, connect your computer's stereo audio output to your scope's X and Y inputs.
+            </div>
+        </section>
+
+        <!-- Interface Overview -->
+        <section id="interface">
+            <h2>// Interface Overview //</h2>
+
+            <p>The Oscilloplot interface is divided into two main areas:</p>
+
+            <h3>Left Panel - Controls</h3>
+            <p>A scrollable panel containing all controls organized into sections:</p>
+            <ul>
+                <li><strong>Data Source</strong> - Buttons to load or generate patterns</li>
+                <li><strong>Audio Parameters</strong> - Sample rate, multiplier, duration, repeats</li>
+                <li><strong>Effects</strong> - All available visual and audio effects</li>
+                <li><strong>Action Buttons</strong> - Apply, Play, Reset, Save</li>
+                <li><strong>Status</strong> - Current status and live preview settings</li>
+            </ul>
+
+            <h3>Right Panel - Display</h3>
+            <p>The oscilloscope-style display showing:</p>
+            <ul>
+                <li><strong>Oscilloplot Branding</strong> - Tektronix-inspired title banner</li>
+                <li><strong>XY Display</strong> - Classic green phosphor visualization</li>
+                <li><strong>Grid Lines</strong> - Reference grid for pattern positioning</li>
+            </ul>
+
+            <div class="tip">
+                Use the scroll wheel or drag the scrollbar to access all controls in the left panel.
+            </div>
+        </section>
+
+        <!-- Data Sources -->
+        <section id="data-sources">
+            <h2>// Data Source Functions //</h2>
+
+            <p>These buttons allow you to load existing patterns or generate new ones:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Button</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Load MATLAB File (.m)</strong></td>
+                        <td>Load X/Y coordinate arrays from MATLAB format files. Expected variables: <code>x_fun</code> and <code>y_fun</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Load Text File (.txt)</strong></td>
+                        <td>Load coordinates from plain text files with <code>x_fun=[...]</code> and <code>y_fun=[...]</code> format</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Load NumPy File (.npz)</strong></td>
+                        <td>Load coordinates from NumPy compressed archives with <code>x</code> and <code>y</code> arrays</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Generate Test Pattern</strong></td>
+                        <td>Creates a simple sine wave test pattern for quick testing and verification</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Draw Pattern</strong></td>
+                        <td>Opens an interactive canvas where you can draw patterns freehand with your mouse</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sum of Harmonics</strong></td>
+                        <td>Opens a dialog to create Lissajous figures by combining multiple sine waves</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Archimedean Spiral</strong></td>
+                        <td>Opens a dialog to generate spiral patterns with configurable parameters</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sound Pad</strong></td>
+                        <td>Opens a 16-step sequencer for creating rhythmic, stepping patterns</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Random Harmonics</strong></td>
+                        <td>Generates random Lissajous-like patterns with random frequencies, phases, and amplitudes</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                After loading data, the "Points:" label shows how many coordinate points are in your pattern.
+            </div>
+        </section>
+
+        <!-- Audio Parameters -->
+        <section id="audio-params">
+            <h2>// Audio Parameters //</h2>
+
+            <p>These parameters control how your pattern is converted to audio:</p>
+
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Base Sample Rate (Hz)</div>
+                    <div class="param-range">Range: 100 - 10,000 Hz | Default: 1,000 Hz</div>
+                    <p>
+                        The base sampling rate for the pattern. Higher values create more detailed patterns but
+                        result in larger audio files. This value is multiplied by the Playback Multiplier to get
+                        the actual audio sample rate.
+                    </p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Playback Multiplier</div>
+                    <div class="param-range">Range: 10 - 500 | Default: 100</div>
+                    <p>
+                        Multiplies the base rate for actual audio output. The formula is:
+                    </p>
+                    <div class="formula">Actual Rate = Base Sample Rate &times; Playback Multiplier</div>
+                    <p>
+                        For example: 1,000 Hz &times; 100 = 100,000 Hz (100 kHz)
+                    </p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Actual Rate</div>
+                    <p>
+                        This read-only label shows the calculated actual sample rate based on your
+                        Base Sample Rate and Playback Multiplier settings.
+                    </p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Duration (seconds)</div>
+                    <div class="param-range">Range: 5 - 120 seconds | Default: 15 seconds</div>
+                    <p>
+                        Total playback duration of the generated audio. Longer durations create larger
+                        files but allow effects like rotation to complete more cycles.
+                    </p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Pattern Repeats</div>
+                    <div class="param-range">Range: 1 - 2,000 | Default: 200</div>
+                    <p>
+                        How many times the pattern repeats during playback. More repeats create smoother
+                        animated effects like rotation, fade sequences, and shrink effects. The rotation
+                        info label shows how many full rotations will occur based on this value.
+                    </p>
+                </div>
+            </div>
+
+            <div class="note">
+                The "Actual Rate" label updates automatically when you change the Base Sample Rate or Playback Multiplier.
+            </div>
+        </section>
+
+        <!-- Effects Reference -->
+        <section id="effects">
+            <h2>// Effects Reference //</h2>
+
+            <p>Oscilloplot includes over 15 different effects that can be combined to create unique visual patterns.</p>
+
+            <!-- Interactive Effects Playground -->
+            <div class="interactive-demo">
+                <div class="demo-title">Interactive Effects Playground (5-Petal Flower Base)</div>
+                <div class="demo-container">
+                    <div class="canvas-container">
+                        <canvas id="effectsCanvas" class="scope-canvas" width="400" height="400"></canvas>
+                    </div>
+                    <div class="controls-container">
+                        <!-- Effect Selection -->
+                        <div class="control-group">
+                            <div class="control-group-title">Select Effect</div>
+                            <div class="effect-tabs">
+                                <button class="effect-tab active" data-effect="none">None</button>
+                                <button class="effect-tab" data-effect="rotation">Rotation</button>
+                                <button class="effect-tab" data-effect="mirror">Mirror</button>
+                                <button class="effect-tab" data-effect="scale">Scale</button>
+                                <button class="effect-tab" data-effect="xfade">X-Fade</button>
+                                <button class="effect-tab" data-effect="yfade">Y-Fade</button>
+                                <button class="effect-tab" data-effect="noise">Noise</button>
+                                <button class="effect-tab" data-effect="wavy">Wavy</button>
+                                <button class="effect-tab" data-effect="tremolo">Tremolo</button>
+                                <button class="effect-tab" data-effect="echo">Echo</button>
+                                <button class="effect-tab" data-effect="kaleidoscope">Kaleidoscope</button>
+                                <button class="effect-tab" data-effect="distortion">Distortion</button>
+                            </div>
+                        </div>
+
+                        <!-- Effect-specific controls -->
+                        <div id="effectControls">
+                            <!-- None (default) -->
+                            <div class="effect-panel" id="panel-none" style="display:block;">
+                                <p style="color: var(--phosphor-dim); font-size: 0.9em;">Select an effect above to see it applied to the 5-petal flower pattern. Use the "Animate" button to see dynamic effects in motion.</p>
+                            </div>
+
+                            <!-- Rotation -->
+                            <div class="effect-panel" id="panel-rotation">
+                                <div class="control-row">
+                                    <span class="control-label">Angle</span>
+                                    <input type="range" id="effectRotAngle" class="control-slider" min="0" max="360" value="0" step="5">
+                                    <span class="control-value" id="effectRotAngleVal">0°</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Speed</span>
+                                    <input type="range" id="effectRotSpeed" class="control-slider" min="0.5" max="10" value="2" step="0.5">
+                                    <span class="control-value" id="effectRotSpeedVal">2.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Mirror -->
+                            <div class="effect-panel" id="panel-mirror">
+                                <div class="control-row">
+                                    <span class="control-label">X Mirror</span>
+                                    <input type="checkbox" id="effectMirrorX" checked>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Y Mirror</span>
+                                    <input type="checkbox" id="effectMirrorY" checked>
+                                </div>
+                            </div>
+
+                            <!-- Scale/Shrink -->
+                            <div class="effect-panel" id="panel-scale">
+                                <div class="control-row">
+                                    <span class="control-label">Scale</span>
+                                    <input type="range" id="effectScale" class="control-slider" min="0.1" max="1.5" value="1" step="0.05">
+                                    <span class="control-value" id="effectScaleVal">1.00</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Speed</span>
+                                    <input type="range" id="effectScaleSpeed" class="control-slider" min="0.5" max="5" value="1" step="0.25">
+                                    <span class="control-value" id="effectScaleSpeedVal">1.0</span>
+                                </div>
+                            </div>
+
+                            <!-- X-Fade -->
+                            <div class="effect-panel" id="panel-xfade">
+                                <div class="control-row">
+                                    <span class="control-label">X Scale</span>
+                                    <input type="range" id="effectXFade" class="control-slider" min="0" max="1" value="1" step="0.05">
+                                    <span class="control-value" id="effectXFadeVal">1.00</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Speed</span>
+                                    <input type="range" id="effectXFadeSpeed" class="control-slider" min="0.5" max="5" value="1" step="0.25">
+                                    <span class="control-value" id="effectXFadeSpeedVal">1.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Y-Fade -->
+                            <div class="effect-panel" id="panel-yfade">
+                                <div class="control-row">
+                                    <span class="control-label">Y Scale</span>
+                                    <input type="range" id="effectYFade" class="control-slider" min="0" max="1" value="1" step="0.05">
+                                    <span class="control-value" id="effectYFadeVal">1.00</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Speed</span>
+                                    <input type="range" id="effectYFadeSpeed" class="control-slider" min="0.5" max="5" value="1" step="0.25">
+                                    <span class="control-value" id="effectYFadeSpeedVal">1.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Noise -->
+                            <div class="effect-panel" id="panel-noise">
+                                <div class="control-row">
+                                    <span class="control-label">X Noise</span>
+                                    <input type="range" id="effectNoiseX" class="control-slider" min="0" max="0.3" value="0.05" step="0.01">
+                                    <span class="control-value" id="effectNoiseXVal">0.05</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Y Noise</span>
+                                    <input type="range" id="effectNoiseY" class="control-slider" min="0" max="0.3" value="0.05" step="0.01">
+                                    <span class="control-value" id="effectNoiseYVal">0.05</span>
+                                </div>
+                            </div>
+
+                            <!-- Wavy -->
+                            <div class="effect-panel" id="panel-wavy">
+                                <div class="control-row">
+                                    <span class="control-label">Amplitude</span>
+                                    <input type="range" id="effectWavyAmp" class="control-slider" min="0" max="0.5" value="0.15" step="0.01">
+                                    <span class="control-value" id="effectWavyAmpVal">0.15</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Frequency</span>
+                                    <input type="range" id="effectWavyFreq" class="control-slider" min="1" max="20" value="5" step="1">
+                                    <span class="control-value" id="effectWavyFreqVal">5</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Speed</span>
+                                    <input type="range" id="effectWavySpeed" class="control-slider" min="0.5" max="5" value="2" step="0.25">
+                                    <span class="control-value" id="effectWavySpeedVal">2.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Tremolo -->
+                            <div class="effect-panel" id="panel-tremolo">
+                                <div class="control-row">
+                                    <span class="control-label">Depth</span>
+                                    <input type="range" id="effectTremDepth" class="control-slider" min="0" max="1" value="0.5" step="0.05">
+                                    <span class="control-value" id="effectTremDepthVal">0.50</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Rate</span>
+                                    <input type="range" id="effectTremRate" class="control-slider" min="0.5" max="10" value="2" step="0.5">
+                                    <span class="control-value" id="effectTremRateVal">2.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Echo -->
+                            <div class="effect-panel" id="panel-echo">
+                                <div class="control-row">
+                                    <span class="control-label">Echoes</span>
+                                    <input type="range" id="effectEchoCount" class="control-slider" min="1" max="8" value="3" step="1">
+                                    <span class="control-value" id="effectEchoCountVal">3</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Decay</span>
+                                    <input type="range" id="effectEchoDecay" class="control-slider" min="0.3" max="0.9" value="0.6" step="0.05">
+                                    <span class="control-value" id="effectEchoDecayVal">0.60</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Offset</span>
+                                    <input type="range" id="effectEchoOffset" class="control-slider" min="0.05" max="0.3" value="0.1" step="0.01">
+                                    <span class="control-value" id="effectEchoOffsetVal">0.10</span>
+                                </div>
+                            </div>
+
+                            <!-- Kaleidoscope -->
+                            <div class="effect-panel" id="panel-kaleidoscope">
+                                <div class="control-row">
+                                    <span class="control-label">Sections</span>
+                                    <input type="range" id="effectKaleidoSections" class="control-slider" min="2" max="12" value="6" step="1">
+                                    <span class="control-value" id="effectKaleidoSectionsVal">6</span>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Mirror</span>
+                                    <input type="checkbox" id="effectKaleidoMirror" checked>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Rot Speed</span>
+                                    <input type="range" id="effectKaleidoSpeed" class="control-slider" min="0" max="3" value="0.5" step="0.1">
+                                    <span class="control-value" id="effectKaleidoSpeedVal">0.5</span>
+                                </div>
+                            </div>
+
+                            <!-- Distortion -->
+                            <div class="effect-panel" id="panel-distortion">
+                                <div class="control-row">
+                                    <span class="control-label">Type</span>
+                                    <select id="effectDistType" style="flex:1; background:#1a1a1a; color:var(--phosphor-green); border:1px solid var(--phosphor-dim); padding:5px; border-radius:4px;">
+                                        <option value="soft">Soft Clip</option>
+                                        <option value="hard">Hard Clip</option>
+                                        <option value="fold">Fold</option>
+                                    </select>
+                                </div>
+                                <div class="control-row">
+                                    <span class="control-label">Threshold</span>
+                                    <input type="range" id="effectDistThreshold" class="control-slider" min="0.2" max="1" value="0.5" step="0.05">
+                                    <span class="control-value" id="effectDistThresholdVal">0.50</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="animate-btn" id="effectsAnimateBtn" onclick="toggleEffectsAnimation()">Animate Effect</button>
+                        <div class="demo-info">
+                            <code>Base: X = sin(5t), Y = cos(4t)</code><br>
+                            <span id="effectDescription">5-petal Lissajous flower pattern</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Mirror Reflections</h3>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Mirror Reflections</div>
+                    <p>
+                        Creates mirror copies of the pattern across axes, producing symmetrical visual effects.
+                        When enabled, the pattern is reflected to create a balanced, mirrored appearance.
+                    </p>
+                </div>
+            </div>
+
+            <h3>Y-Axis Fade Sequence</h3>
+            <p>Gradually fades the pattern in and out along the Y-axis, creating a vertical pulsing effect.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Y Fade Steps</div>
+                    <div class="param-range">Range: 2 - 50 | Default: 10</div>
+                    <p>Number of fade levels. More steps create smoother, more gradual fading.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Y Fade Speed (repeats/step)</div>
+                    <div class="param-range">Range: 1 - 20 | Default: 1</div>
+                    <p>How many pattern repeats occur per fade step. Lower values create slower fade animations.</p>
+                </div>
+            </div>
+
+            <h3>X-Axis Fade Sequence</h3>
+            <p>Gradually fades the pattern in and out along the X-axis, creating a horizontal pulsing effect.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">X Fade Steps</div>
+                    <div class="param-range">Range: 2 - 50 | Default: 10</div>
+                    <p>Number of fade levels. More steps create smoother, more gradual fading.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">X Fade Speed (repeats/step)</div>
+                    <div class="param-range">Range: 1 - 20 | Default: 1</div>
+                    <p>How many pattern repeats occur per fade step. Lower values create slower fade animations.</p>
+                </div>
+            </div>
+
+            <h3>Alternate X/Y Fade</h3>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Alternate X/Y Fade (X first, then Y, repeat)</div>
+                    <p>
+                        When enabled, alternates between X and Y fading. X fades first, then Y, and the
+                        cycle repeats. This creates a "breathing" or pulsing effect on different axes.
+                    </p>
+                </div>
+            </div>
+
+            <h3>Shrink/Unshrink</h3>
+            <p>Scales the entire pattern uniformly (both X and Y together), creating a zoom in/out effect.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Shrink Steps</div>
+                    <div class="param-range">Range: 2 - 50 | Default: 10</div>
+                    <p>Number of scale levels from full size to minimum and back.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Shrink Speed (repeats/step)</div>
+                    <div class="param-range">Range: 1 - 20 | Default: 1</div>
+                    <p>How many pattern repeats occur per shrink step. Controls animation speed.</p>
+                </div>
+            </div>
+
+            <h3>Noise Effects</h3>
+            <p>Add random noise to create organic, jittery effects. X and Y channels can be controlled independently.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Add X-Channel Noise</div>
+                    <p>Toggles noise on the X (horizontal) channel.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">X Noise Amplitude</div>
+                    <div class="param-range">Range: 0.001 - 0.3 | Default: 0.05</div>
+                    <p>Noise intensity for X channel. Higher values create more visible jitter.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Add Y-Channel Noise</div>
+                    <p>Toggles noise on the Y (vertical) channel.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Y Noise Amplitude</div>
+                    <div class="param-range">Range: 0.001 - 0.3 | Default: 0.05</div>
+                    <p>Noise intensity for Y channel. Higher values create more visible jitter.</p>
+                </div>
+            </div>
+
+            <h3>Wavy Effect</h3>
+            <p>Adds sinusoidal modulation to create wobbling, undulating patterns.</p>
+            <div class="formula">output = input + K &times; sin(&omega; &times; t)</div>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Add X-Channel Wavy</div>
+                    <p>Toggles wavy effect on the X channel.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">X Amplitude (K)</div>
+                    <div class="param-range">Range: 0.0 - 1.0 | Default: 0.2</div>
+                    <p>Wave amplitude. Higher values create more pronounced waves.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">X Angular Frequency (&omega;)</div>
+                    <div class="param-range">Range: 1 - 1,000,000 | Default: 10</div>
+                    <p>Wave frequency. Higher values create faster oscillation. You can type a precise value in the entry box.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Add Y-Channel Wavy</div>
+                    <p>Toggles wavy effect on the Y channel.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Y Amplitude (K)</div>
+                    <div class="param-range">Range: 0.0 - 1.0 | Default: 0.2</div>
+                    <p>Wave amplitude for Y channel.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Y Angular Frequency (&omega;)</div>
+                    <div class="param-range">Range: 1 - 1,000,000 | Default: 10</div>
+                    <p>Wave frequency for Y channel.</p>
+                </div>
+            </div>
+
+            <h3>Rotation</h3>
+            <p>Rotates the entire pattern around the center point.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Rotation Mode</div>
+                    <table>
+                        <thead>
+                            <tr><th>Mode</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Off</strong></td><td>No rotation applied</td></tr>
+                            <tr><td><strong>Static Angle</strong></td><td>Fixed rotation at specified angle</td></tr>
+                            <tr><td><strong>Rotate Clockwise (CW)</strong></td><td>Continuous clockwise rotation</td></tr>
+                            <tr><td><strong>Rotate Counter-Clockwise (CCW)</strong></td><td>Continuous counter-clockwise rotation</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Static Angle (degrees)</div>
+                    <div class="param-range">Range: -180&deg; to +180&deg; | Default: 0&deg;</div>
+                    <p>Fixed rotation angle in degrees. Only used when "Static Angle" mode is selected.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Rotation Speed (degrees/cycle)</div>
+                    <div class="param-range">Range: 0.5 - 45 | Default: 5</div>
+                    <p>How many degrees the pattern rotates per pattern cycle.</p>
+                    <div class="formula">Steps per full rotation = 360&deg; &divide; Rotation Speed</div>
+                </div>
+            </div>
+            <div class="tip">
+                More Pattern Repeats = more complete rotations. The info label below the Audio Parameters
+                shows how many full rotations will occur with your current settings.
+            </div>
+
+            <h3>Tremolo (Amplitude Modulation)</h3>
+            <p>Modulates the signal amplitude to create pulsing, throbbing effects.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Tremolo</div>
+                    <p>Toggles the tremolo effect.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Depth (%)</div>
+                    <div class="param-range">Range: 0 - 100% | Default: 50%</div>
+                    <p>Modulation depth. 100% means full amplitude variation from silent to full volume.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Rate (Hz)</div>
+                    <div class="param-range">Range: 0.1 - 20 Hz | Default: 2 Hz</div>
+                    <p>Modulation frequency. How fast the amplitude pulses.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Waveform</div>
+                    <table>
+                        <thead>
+                            <tr><th>Waveform</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Sine</strong></td><td>Smooth, organic pulsing</td></tr>
+                            <tr><td><strong>Triangle</strong></td><td>Linear rise and fall</td></tr>
+                            <tr><td><strong>Square</strong></td><td>Abrupt on/off switching</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h3>Ring Modulation</h3>
+            <p>Multiplies the signal with a carrier wave for metallic, robotic effects.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Ring Modulation</div>
+                    <p>Toggles the ring modulation effect.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Carrier Freq (Hz)</div>
+                    <div class="param-range">Range: 10 - 2,000 Hz | Default: 200 Hz</div>
+                    <p>Carrier frequency. Creates sidebands around original frequencies for complex timbres.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Mix (%)</div>
+                    <div class="param-range">Range: 0 - 100% | Default: 50%</div>
+                    <p>Wet/dry mix. 0% = original signal, 100% = fully modulated signal.</p>
+                </div>
+            </div>
+
+            <h3>Echo/Delay</h3>
+            <p>Creates repeating echoes of the pattern.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Echo</div>
+                    <p>Toggles the echo effect.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Number of Echoes</div>
+                    <div class="param-range">Range: 1 - 10 | Default: 3</div>
+                    <p>How many echoes to generate.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Decay Factor</div>
+                    <div class="param-range">Range: 0.1 - 0.95 | Default: 0.7</div>
+                    <p>Volume reduction per echo. Higher values mean echoes last longer.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Delay Time (%)</div>
+                    <div class="param-range">Range: 1 - 50% | Default: 10%</div>
+                    <p>Echo spacing as percentage of pattern length.</p>
+                </div>
+            </div>
+
+            <h3>Kaleidoscope</h3>
+            <p>Creates symmetrical copies of the pattern around the center.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Kaleidoscope</div>
+                    <p>Toggles the kaleidoscope effect.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Symmetry Sections</div>
+                    <div class="param-range">Range: 2 - 12 | Default: 6</div>
+                    <p>Number of symmetrical copies. 6 creates hexagonal symmetry.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Mirror Reflections</div>
+                    <p>When enabled, alternating sections are mirrored for additional symmetry.</p>
+                </div>
+            </div>
+
+            <h3>Distortion</h3>
+            <p>Clips or folds the signal for aggressive visual effects.</p>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Enable Distortion</div>
+                    <p>Toggles the distortion effect.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Type</div>
+                    <table>
+                        <thead>
+                            <tr><th>Type</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Soft Clip</strong></td><td>Smooth saturation curve, natural-sounding</td></tr>
+                            <tr><td><strong>Hard Clip</strong></td><td>Sharp cutoff at threshold, harsh sound</td></tr>
+                            <tr><td><strong>Fold</strong></td><td>Signal wraps around at threshold, creating complex patterns</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Threshold</div>
+                    <div class="param-range">Range: 0.1 - 2.0 | Default: 0.5</div>
+                    <p>Clipping threshold. Lower values create more distortion.</p>
+                </div>
+            </div>
+
+            <div class="note">
+                All effects can be combined! Enable multiple effects to create unique, complex patterns.
+                Click "Apply & Generate" after changing any effect settings to hear and see the results.
+            </div>
+        </section>
+
+        <!-- Live Preview -->
+        <section id="preview">
+            <h2>// Live Preview Settings //</h2>
+
+            <p>The Live Preview feature shows real-time output during playback, simulating what you'd see on an actual oscilloscope.</p>
+
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Live Preview</div>
+                    <p>Toggle to enable/disable real-time display during playback. Disable for lower CPU usage.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Window Size</div>
+                    <div class="param-range">Range: 100 - 50,000 samples | Default: 5,000</div>
+                    <p>
+                        Number of samples shown at once. Larger values show more of the pattern but use more CPU.
+                        Smaller values create a "trailing" effect similar to real oscilloscope phosphor decay.
+                    </p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Frame Rate</div>
+                    <div class="param-range">Range: 5 - 60 FPS | Default: 25 FPS</div>
+                    <p>Preview refresh rate. Higher values create smoother animation but use more CPU.</p>
+                </div>
+            </div>
+
+            <div class="tip">
+                If performance is an issue, reduce the Frame Rate to 15-20 FPS and Window Size to 2,000-3,000 samples.
+            </div>
+        </section>
+
+        <!-- Pattern Generators -->
+        <section id="pattern-generators">
+            <h2>// Pattern Generators - Detailed Guide //</h2>
+
+            <h3>Sum of Harmonics (Lissajous Figures)</h3>
+            <p>
+                Create beautiful Lissajous figures by combining multiple sine waves. This is the mathematical
+                foundation of many classic oscilloscope patterns.
+            </p>
+
+            <h4>Mathematical Basis</h4>
+            <div class="formula">
+                X = A<sub>1</sub>&middot;sin(f<sub>1</sub>&middot;t + &phi;<sub>1</sub>) + A<sub>2</sub>&middot;sin(f<sub>2</sub>&middot;t + &phi;<sub>2</sub>) + ...
+            </div>
+            <div class="formula">
+                Y = B<sub>1</sub>&middot;sin(g<sub>1</sub>&middot;t + &psi;<sub>1</sub>) + B<sub>2</sub>&middot;sin(g<sub>2</sub>&middot;t + &psi;<sub>2</sub>) + ...
+            </div>
+
+            <h4>Harmonic Parameters</h4>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Amplitude (A, B)</strong></td><td>Wave height - controls the size of the contribution</td></tr>
+                    <tr><td><strong>Frequency (f, g)</strong></td><td>Oscillation speed - integer ratios create closed figures</td></tr>
+                    <tr><td><strong>Phase (&phi;, &psi;)</strong></td><td>Starting position offset in radians</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Classic Lissajous Ratios</h4>
+            <table>
+                <thead>
+                    <tr><th>X:Y Ratio</th><th>Shape</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1:1</td><td>Circle, Ellipse, or Line (depends on phase)</td></tr>
+                    <tr><td>1:2</td><td>Figure-8 (infinity symbol)</td></tr>
+                    <tr><td>2:3</td><td>Pretzel or bow-tie shape</td></tr>
+                    <tr><td>3:4</td><td>Complex interlocking loops</td></tr>
+                    <tr><td>3:5</td><td>Even more complex patterns</td></tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                Integer frequency ratios (like 1:2, 2:3, 3:4) create closed figures that loop smoothly.
+                Non-integer ratios create patterns that never close, filling the display area over time.
+            </div>
+
+            <h3>Archimedean Spiral</h3>
+            <p>Generate spiral patterns using polar coordinates converted to Cartesian for display.</p>
+
+            <h4>Mathematical Basis</h4>
+            <div class="formula">r = a + b &middot; &theta;</div>
+            <p>Where:</p>
+            <ul>
+                <li><strong>r</strong> = distance from center (radius)</li>
+                <li><strong>&theta;</strong> = angle in radians</li>
+                <li><strong>a</strong> = starting radius (inner size)</li>
+                <li><strong>b</strong> = growth rate (spacing between loops)</li>
+            </ul>
+
+            <h4>Cartesian Conversion</h4>
+            <div class="formula">X = r &middot; cos(&theta;)</div>
+            <div class="formula">Y = r &middot; sin(&theta;)</div>
+
+            <h4>Parameters</h4>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>a (Start Radius)</strong></td><td>Inner size of the spiral. 0 starts at center.</td></tr>
+                    <tr><td><strong>b (Growth Rate)</strong></td><td>Spacing between loops. Higher = wider spacing.</td></tr>
+                    <tr><td><strong>Turns</strong></td><td>Number of complete spiral rotations.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Sound Pad Sequencer</h3>
+            <p>A 16-step pattern sequencer for creating rhythmic, stepping patterns.</p>
+
+            <h4>Features</h4>
+            <table>
+                <thead>
+                    <tr><th>Feature</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>16 Time Slots</strong></td><td>Click to select and edit each step</td></tr>
+                    <tr><td><strong>Grid Pattern</strong></td><td>Set X/Y values for each step individually</td></tr>
+                    <tr><td><strong>Position Offset</strong></td><td>Shifts the entire pattern position</td></tr>
+                    <tr><td><strong>Clear Step</strong></td><td>Remove data from selected step</td></tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                The Sound Pad is great for creating geometric patterns that step through discrete positions,
+                similar to early vector game graphics.
+            </div>
+
+            <h3>Random Harmonics</h3>
+            <p>
+                Generates random but pleasing Lissajous-like patterns automatically. Each click creates
+                a new unique pattern with:
+            </p>
+            <ul>
+                <li>Random integer frequency ratios (creates closed figures)</li>
+                <li>Random phase offsets</li>
+                <li>Random amplitudes</li>
+            </ul>
+            <div class="note">
+                Click the button multiple times to cycle through random patterns until you find one you like!
+            </div>
+
+            <h3>Draw Pattern (Freehand Canvas)</h3>
+            <p>
+                Opens an interactive drawing canvas where you can create patterns by drawing with your mouse.
+                The drawn shape is converted to XY coordinates for oscilloscope display.
+            </p>
+            <ul>
+                <li>Click and drag to draw</li>
+                <li>Release to finish a stroke</li>
+                <li>Draw multiple strokes to create complex patterns</li>
+                <li>Click "Done" or close the window to apply your drawing</li>
+            </ul>
+        </section>
+
+        <!-- Sum of Harmonics Detailed Guide -->
+        <section id="harmonics-guide">
+            <h2>// Sum of Harmonics - Complete Guide //</h2>
+
+            <p>
+                The Sum of Harmonics generator is one of the most powerful pattern creation tools in Oscilloplot.
+                It creates <strong>Lissajous figures</strong> and complex waveforms by mathematically combining
+                multiple sine and cosine waves. Understanding how each parameter affects the output will help
+                you design stunning visual patterns.
+            </p>
+
+            <h3>Understanding the Mathematics</h3>
+            <p>
+                Each channel (X and Y) is the sum of one or more harmonic terms. The general formula is:
+            </p>
+            <div class="formula">
+                X(t) = A<sub>1</sub>&middot;func(f<sub>1</sub>&middot;t + &phi;<sub>1</sub>) + A<sub>2</sub>&middot;func(f<sub>2</sub>&middot;t + &phi;<sub>2</sub>) + ...
+            </div>
+            <div class="formula">
+                Y(t) = B<sub>1</sub>&middot;func(g<sub>1</sub>&middot;t + &psi;<sub>1</sub>) + B<sub>2</sub>&middot;func(g<sub>2</sub>&middot;t + &psi;<sub>2</sub>) + ...
+            </div>
+            <p>Where <code>func</code> is either <code>sin</code> or <code>cos</code>, and <code>t</code> ranges from 0 to 2&pi;.</p>
+
+            <!-- Interactive Lissajous Demo -->
+            <div class="interactive-demo">
+                <div class="demo-title">Interactive Lissajous Figure Generator</div>
+                <div class="demo-container">
+                    <div class="canvas-container">
+                        <canvas id="lissajousCanvas" class="scope-canvas" width="400" height="400"></canvas>
+                    </div>
+                    <div class="controls-container">
+                        <div class="control-group">
+                            <div class="control-group-title">X Channel</div>
+                            <div class="control-row">
+                                <span class="control-label">Frequency</span>
+                                <input type="range" id="lissXFreq" class="control-slider" min="1" max="10" value="1" step="1">
+                                <span class="control-value" id="lissXFreqVal">1</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">Amplitude</span>
+                                <input type="range" id="lissXAmp" class="control-slider" min="0.1" max="1" value="1" step="0.1">
+                                <span class="control-value" id="lissXAmpVal">1.0</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">Phase</span>
+                                <input type="range" id="lissXPhase" class="control-slider" min="0" max="6.28" value="0" step="0.1">
+                                <span class="control-value" id="lissXPhaseVal">0.0</span>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <div class="control-group-title">Y Channel</div>
+                            <div class="control-row">
+                                <span class="control-label">Frequency</span>
+                                <input type="range" id="lissYFreq" class="control-slider" min="1" max="10" value="2" step="1">
+                                <span class="control-value" id="lissYFreqVal">2</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">Amplitude</span>
+                                <input type="range" id="lissYAmp" class="control-slider" min="0.1" max="1" value="1" step="0.1">
+                                <span class="control-value" id="lissYAmpVal">1.0</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">Phase</span>
+                                <input type="range" id="lissYPhase" class="control-slider" min="0" max="6.28" value="1.57" step="0.1">
+                                <span class="control-value" id="lissYPhaseVal">1.57</span>
+                            </div>
+                        </div>
+                        <div class="preset-buttons">
+                            <button class="preset-btn" onclick="setLissajousPreset(1,1,0,1.57)">Circle</button>
+                            <button class="preset-btn" onclick="setLissajousPreset(1,2,0,0)">Figure-8</button>
+                            <button class="preset-btn" onclick="setLissajousPreset(2,3,0,0)">Pretzel</button>
+                            <button class="preset-btn" onclick="setLissajousPreset(3,4,0,1.57)">3:4 Loops</button>
+                            <button class="preset-btn" onclick="setLissajousPreset(3,5,0,0.5)">3:5 Star</button>
+                            <button class="preset-btn" onclick="setLissajousPreset(5,6,0,1.57)">Flower</button>
+                        </div>
+                        <button class="animate-btn" id="lissAnimateBtn" onclick="toggleLissajousAnimation()">Animate Phase</button>
+                        <div class="demo-info">
+                            <code>X = <span id="lissFormulaX">sin(1t + 0)</span></code><br>
+                            <code>Y = <span id="lissFormulaY">sin(2t + 1.57)</span></code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Parameter Reference</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Symbol</th><th>Effect on Shape</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Function Type</strong></td>
+                        <td>sin / cos</td>
+                        <td>Determines wave shape. <code>cos</code> is equivalent to <code>sin</code> with a 90&deg; phase shift.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Amplitude</strong></td>
+                        <td>A, B</td>
+                        <td>Controls the <em>size</em> of that term's contribution. Larger values = bigger influence on the overall shape.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Frequency</strong></td>
+                        <td>f, g (&omega;)</td>
+                        <td>Controls how many complete cycles occur. The <em>ratio</em> between X and Y frequencies determines the shape type.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase</strong></td>
+                        <td>&phi;, &psi;</td>
+                        <td>Starting position of the wave (in radians). Shifts the wave left/right in time, changing the figure's orientation.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Shapes Created by Frequency Ratios</h3>
+            <p>
+                The ratio of X frequency to Y frequency is the most important factor in determining the shape.
+                When both channels have a single term, here's what you get:
+            </p>
+
+            <h4>1:1 Ratio (Equal Frequencies)</h4>
+            <table>
+                <thead>
+                    <tr><th>Phase Difference</th><th>Resulting Shape</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>0&deg; (0 radians)</td><td><strong>Diagonal Line</strong> (45&deg;) - X and Y are in sync</td></tr>
+                    <tr><td>45&deg; (&pi;/4)</td><td><strong>Ellipse</strong> tilted at an angle</td></tr>
+                    <tr><td>90&deg; (&pi;/2)</td><td><strong>Circle</strong> - X leads Y by quarter cycle</td></tr>
+                    <tr><td>180&deg; (&pi;)</td><td><strong>Diagonal Line</strong> (opposite direction, -45&deg;)</td></tr>
+                    <tr><td>270&deg; (3&pi;/2)</td><td><strong>Circle</strong> (opposite rotation direction)</td></tr>
+                </tbody>
+            </table>
+            <div class="tip">
+                To create a perfect circle: X = sin(t), Y = cos(t) - which is sin(t) with &pi;/2 phase offset.
+            </div>
+
+            <h4>Simple Integer Ratios</h4>
+            <table>
+                <thead>
+                    <tr><th>X:Y Ratio</th><th>Shape Description</th><th>Number of Lobes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>1:2</strong></td><td>Figure-8 / Infinity symbol (&infin;)</td><td>2 lobes horizontally</td></tr>
+                    <tr><td><strong>2:1</strong></td><td>Figure-8 rotated 90&deg;</td><td>2 lobes vertically</td></tr>
+                    <tr><td><strong>1:3</strong></td><td>Trefoil / Three-leaf pattern</td><td>3 lobes</td></tr>
+                    <tr><td><strong>2:3</strong></td><td>Pretzel / Bow-tie shape</td><td>Complex 6-crossing pattern</td></tr>
+                    <tr><td><strong>3:4</strong></td><td>Complex interlocking loops</td><td>12 crossings</td></tr>
+                    <tr><td><strong>3:5</strong></td><td>Very complex star-like pattern</td><td>15 crossings</td></tr>
+                    <tr><td><strong>4:5</strong></td><td>Dense, flower-like pattern</td><td>20 crossings</td></tr>
+                </tbody>
+            </table>
+
+            <div class="note">
+                <strong>Pattern Rule:</strong> For ratio a:b, the figure will have (a&times;b) crossing points when the
+                ratio is in lowest terms. Integer ratios always create closed, repeating figures.
+            </div>
+
+            <h4>Non-Integer Ratios</h4>
+            <p>
+                When frequencies are not integer ratios (e.g., 1:1.5, 1:&pi;), the pattern <em>never closes</em>.
+                Over time, the beam traces out more and more of the display area, creating filled-in shapes.
+                These are called <strong>open Lissajous curves</strong>.
+            </p>
+
+            <h3>How Each Parameter Changes the Shape</h3>
+
+            <h4>Changing Amplitude</h4>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Increasing X Amplitude</div>
+                    <p>Stretches the pattern horizontally. Higher values = wider shape.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Increasing Y Amplitude</div>
+                    <p>Stretches the pattern vertically. Higher values = taller shape.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Unequal Amplitudes</div>
+                    <p>Creates elliptical distortion. A 1:1 ratio with unequal amplitudes turns a circle into an ellipse.</p>
+                </div>
+            </div>
+
+            <h4>Changing Frequency</h4>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Increasing X Frequency</div>
+                    <p>Adds more horizontal oscillations. Creates more "lobes" on the left and right sides.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Increasing Y Frequency</div>
+                    <p>Adds more vertical oscillations. Creates more "lobes" on the top and bottom.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Higher Total Frequencies</div>
+                    <p>Creates denser, more intricate patterns with many crossings and loops.</p>
+                </div>
+            </div>
+
+            <h4>Changing Phase</h4>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Small Phase Changes (0-&pi;/4)</div>
+                    <p>Tilts or rotates the figure slightly. Turns lines into ellipses.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">&pi;/2 Phase Difference</div>
+                    <p>Maximum "openness" - creates the most rounded version of any pattern (circles, full figure-8s).</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">&pi; Phase Difference</div>
+                    <p>Inverts one axis - mirrors the pattern.</p>
+                </div>
+            </div>
+
+            <h3>Adding Multiple Harmonics</h3>
+            <p>
+                The real power comes from combining multiple terms. Each additional harmonic adds complexity
+                and detail to the pattern:
+            </p>
+
+            <h4>Example: Creating a Star Shape</h4>
+            <p>To create a 5-pointed star:</p>
+            <ul>
+                <li><strong>X Channel:</strong> sin(5t) with amplitude 1.0</li>
+                <li><strong>Y Channel:</strong> cos(5t) with amplitude 1.0</li>
+                <li>Then add smaller harmonics to sharpen the points</li>
+            </ul>
+
+            <h4>Example: Complex Flower Pattern</h4>
+            <p>Combine a base frequency with higher harmonics:</p>
+            <ul>
+                <li><strong>X Term 1:</strong> sin(3t), amplitude 1.0</li>
+                <li><strong>X Term 2:</strong> sin(7t), amplitude 0.3</li>
+                <li><strong>Y Term 1:</strong> cos(5t), amplitude 1.0</li>
+                <li><strong>Y Term 2:</strong> cos(11t), amplitude 0.2</li>
+            </ul>
+            <p>The higher harmonics add fine detail to the main pattern.</p>
+
+            <h4>Tips for Complex Patterns</h4>
+            <ul>
+                <li><strong>Use prime number frequencies</strong> - Creates more complex, non-repeating subpatterns</li>
+                <li><strong>Decrease amplitude with frequency</strong> - Higher harmonics should have smaller amplitudes for natural-looking shapes</li>
+                <li><strong>Vary phases randomly</strong> - Prevents all harmonics from aligning too symmetrically</li>
+                <li><strong>Mix sin and cos</strong> - Equivalent to phase shifts, but easier to conceptualize</li>
+            </ul>
+
+            <h3>Animation Features</h3>
+
+            <h4>Phase Sweep</h4>
+            <p>
+                Enabling "Phase Sweep" on a term animates its phase from a start value to an end value
+                over a specified number of steps. This creates:
+            </p>
+            <ul>
+                <li><strong>Rotating patterns</strong> - The figure appears to spin or tumble</li>
+                <li><strong>Morphing shapes</strong> - Smooth transitions between different configurations</li>
+                <li><strong>Pulsing effects</strong> - Rhythmic expansion and contraction</li>
+            </ul>
+            <div class="tip">
+                For a smoothly rotating circle, sweep the phase from 0 to 2&pi; over many steps.
+            </div>
+
+            <h4>Frequency Sweep</h4>
+            <p>
+                Sweeping frequency creates dramatic transformation effects:
+            </p>
+            <ul>
+                <li>Pattern morphs from one shape to another (e.g., circle &rarr; figure-8 &rarr; trefoil)</li>
+                <li>Creates "warping" or "breathing" animations</li>
+                <li>Useful for creating transition effects</li>
+            </ul>
+
+            <h3>Classic Recipes</h3>
+            <table>
+                <thead>
+                    <tr><th>Pattern</th><th>X Settings</th><th>Y Settings</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Perfect Circle</strong></td>
+                        <td>sin(1&middot;t), A=1</td>
+                        <td>cos(1&middot;t), B=1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Figure-8</strong></td>
+                        <td>sin(1&middot;t), A=1</td>
+                        <td>sin(2&middot;t), B=1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Butterfly</strong></td>
+                        <td>sin(2&middot;t), A=1</td>
+                        <td>sin(3&middot;t), B=1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>5-Petal Flower</strong></td>
+                        <td>sin(5&middot;t), A=1</td>
+                        <td>cos(4&middot;t), B=1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Spiral Star</strong></td>
+                        <td>sin(5&middot;t) + 0.5&middot;sin(2&middot;t)</td>
+                        <td>cos(5&middot;t) + 0.5&middot;cos(2&middot;t)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Complex Web</strong></td>
+                        <td>sin(7&middot;t) + 0.3&middot;sin(3&middot;t)</td>
+                        <td>cos(5&middot;t) + 0.3&middot;cos(11&middot;t)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Archimedean Spiral Detailed Guide -->
+        <section id="spiral-guide">
+            <h2>// Archimedean Spiral - Complete Guide //</h2>
+
+            <p>
+                The Archimedean Spiral generator creates classic spiral patterns that expand outward from a center point.
+                Named after the ancient Greek mathematician Archimedes, this spiral has uniform spacing between
+                successive turns, making it visually pleasing and mathematically elegant.
+            </p>
+
+            <h3>Understanding the Mathematics</h3>
+            <p>
+                In Oscilloplot, the Archimedean spiral is generated using the parametric equations:
+            </p>
+            <div class="formula">X(t) = a &middot; t &middot; sin(b &middot; t)</div>
+            <div class="formula">Y(t) = a &middot; t &middot; cos(b &middot; t)</div>
+            <p>Where:</p>
+            <ul>
+                <li><strong>t</strong> = time parameter (ranges from 0 to 4&pi;, giving approximately 2 full rotations)</li>
+                <li><strong>a</strong> = amplitude/size parameter (controls overall spiral size)</li>
+                <li><strong>b</strong> = frequency parameter (controls how tightly wound the spiral is)</li>
+            </ul>
+
+            <p>
+                The classic polar form is <code>r = a + b&middot;&theta;</code>, but Oscilloplot uses the
+                parametric form above which produces similar visual results with independent X and Y control.
+            </p>
+
+            <!-- Interactive Spiral Demo -->
+            <div class="interactive-demo">
+                <div class="demo-title">Interactive Archimedean Spiral Generator</div>
+                <div class="demo-container">
+                    <div class="canvas-container">
+                        <canvas id="spiralCanvas" class="scope-canvas" width="400" height="400"></canvas>
+                    </div>
+                    <div class="controls-container">
+                        <div class="control-group">
+                            <div class="control-group-title">X Channel</div>
+                            <div class="control-row">
+                                <span class="control-label">a (Amp)</span>
+                                <input type="range" id="spiralXA" class="control-slider" min="0.01" max="0.15" value="0.08" step="0.01">
+                                <span class="control-value" id="spiralXAVal">0.08</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">b (Freq)</span>
+                                <input type="range" id="spiralXB" class="control-slider" min="0.5" max="10" value="3" step="0.5">
+                                <span class="control-value" id="spiralXBVal">3.0</span>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <div class="control-group-title">Y Channel</div>
+                            <div class="control-row">
+                                <span class="control-label">a (Amp)</span>
+                                <input type="range" id="spiralYA" class="control-slider" min="0.01" max="0.15" value="0.08" step="0.01">
+                                <span class="control-value" id="spiralYAVal">0.08</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">b (Freq)</span>
+                                <input type="range" id="spiralYB" class="control-slider" min="0.5" max="10" value="3" step="0.5">
+                                <span class="control-value" id="spiralYBVal">3.0</span>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <div class="control-group-title">Range</div>
+                            <div class="control-row">
+                                <span class="control-label">t max</span>
+                                <input type="range" id="spiralTMax" class="control-slider" min="6.28" max="50" value="25" step="1">
+                                <span class="control-value" id="spiralTMaxVal">25</span>
+                            </div>
+                        </div>
+                        <div class="preset-buttons">
+                            <button class="preset-btn" onclick="setSpiralPreset(0.08,3,0.08,3,25)">Classic</button>
+                            <button class="preset-btn" onclick="setSpiralPreset(0.03,8,0.03,8,40)">Tight Coil</button>
+                            <button class="preset-btn" onclick="setSpiralPreset(0.12,1.5,0.12,1.5,20)">Loose</button>
+                            <button class="preset-btn" onclick="setSpiralPreset(0.1,3,0.05,3,30)">Elliptical</button>
+                            <button class="preset-btn" onclick="setSpiralPreset(0.06,2,0.06,3,30)">Hybrid</button>
+                            <button class="preset-btn" onclick="setSpiralPreset(0.04,5,0.04,7,35)">Complex</button>
+                        </div>
+                        <button class="animate-btn" id="spiralAnimateBtn" onclick="toggleSpiralAnimation()">Animate Drawing</button>
+                        <div class="demo-info">
+                            <code>X = <span id="spiralFormulaX">0.08 &middot; t &middot; sin(3t)</span></code><br>
+                            <code>Y = <span id="spiralFormulaY">0.08 &middot; t &middot; cos(3t)</span></code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Parameter Reference</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Range</th><th>Effect on Spiral</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>a (Amplitude)</strong></td>
+                        <td>0.1 - 5.0</td>
+                        <td>Controls the overall size and how quickly the spiral expands. Higher values = faster growth, larger spiral.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>b (Frequency)</strong></td>
+                        <td>0.1 - 10.0</td>
+                        <td>Controls the rotation speed / number of turns. Higher values = more tightly wound spiral with more rotations.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Shapes Created by Parameter Combinations</h3>
+
+            <h4>Effect of Parameter 'a' (Amplitude)</h4>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Low a (0.1 - 0.5)</div>
+                    <p>Small, compact spiral. The arms stay close to the center. Good for detailed, concentrated patterns.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Medium a (0.5 - 1.5)</div>
+                    <p>Balanced spiral that uses most of the display area. Best for general use.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">High a (1.5 - 5.0)</div>
+                    <p>Large, expansive spiral. Arms extend far from center. May extend beyond display boundaries.</p>
+                </div>
+            </div>
+
+            <h4>Effect of Parameter 'b' (Frequency)</h4>
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Low b (0.1 - 0.5)</div>
+                    <p>Very slow rotation. Creates a "lazy" spiral with few turns. Almost looks like a curved line.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">Medium b (1.0 - 3.0)</div>
+                    <p>Classic spiral appearance with 2-6 visible turns. Clear spiral structure.</p>
+                </div>
+                <div class="param-item">
+                    <div class="param-name">High b (3.0 - 10.0)</div>
+                    <p>Tightly wound spiral with many rotations. Creates dense, spring-like patterns.</p>
+                </div>
+            </div>
+
+            <h4>Common Spiral Shapes</h4>
+            <table>
+                <thead>
+                    <tr><th>Shape</th><th>X: a</th><th>X: b</th><th>Y: a</th><th>Y: b</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Classic Spiral</strong></td>
+                        <td>1.0</td>
+                        <td>1.0</td>
+                        <td>1.0</td>
+                        <td>1.0</td>
+                        <td>Perfectly symmetric Archimedean spiral</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tight Coil</strong></td>
+                        <td>0.5</td>
+                        <td>5.0</td>
+                        <td>0.5</td>
+                        <td>5.0</td>
+                        <td>Many tight loops, spring-like appearance</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Loose Whorl</strong></td>
+                        <td>2.0</td>
+                        <td>0.5</td>
+                        <td>2.0</td>
+                        <td>0.5</td>
+                        <td>Few, widely-spaced turns</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Horizontal Elliptical</strong></td>
+                        <td>1.5</td>
+                        <td>1.0</td>
+                        <td>0.5</td>
+                        <td>1.0</td>
+                        <td>Spiral stretched horizontally</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vertical Elliptical</strong></td>
+                        <td>0.5</td>
+                        <td>1.0</td>
+                        <td>1.5</td>
+                        <td>1.0</td>
+                        <td>Spiral stretched vertically</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Complex Lissajous-Spiral</strong></td>
+                        <td>1.0</td>
+                        <td>2.0</td>
+                        <td>1.0</td>
+                        <td>3.0</td>
+                        <td>Hybrid pattern with Lissajous-like features</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Different X and Y Parameters</h3>
+            <p>
+                When X and Y have different parameter values, you create distorted and hybrid patterns:
+            </p>
+
+            <h4>Unequal Amplitudes (a<sub>X</sub> &ne; a<sub>Y</sub>)</h4>
+            <ul>
+                <li>Creates an elliptical spiral instead of circular</li>
+                <li>If a<sub>X</sub> &gt; a<sub>Y</sub>: Spiral is wider than tall</li>
+                <li>If a<sub>X</sub> &lt; a<sub>Y</sub>: Spiral is taller than wide</li>
+            </ul>
+
+            <h4>Unequal Frequencies (b<sub>X</sub> &ne; b<sub>Y</sub>)</h4>
+            <ul>
+                <li>Creates complex, Lissajous-like spiral hybrids</li>
+                <li>The spiral develops additional lobes and crossings</li>
+                <li>Integer ratios create repeating patterns; non-integer ratios create filled patterns</li>
+            </ul>
+
+            <div class="tip">
+                Try b<sub>X</sub>=2 and b<sub>Y</sub>=3 for a fascinating spiral that weaves in and out of itself.
+            </div>
+
+            <h3>Frequency Sweep</h3>
+            <p>
+                The frequency sweep feature animates the 'b' parameter from a start value to an end value,
+                creating dramatic morphing effects:
+            </p>
+
+            <div class="param-list">
+                <div class="param-item">
+                    <div class="param-name">Start Frequency &rarr; End Frequency</div>
+                    <p>
+                        The spiral smoothly transitions from loosely wound to tightly wound (or vice versa).
+                        Creates a "breathing" or "pulsing" effect.
+                    </p>
+                </div>
+            </div>
+
+            <h4>Sweep Examples</h4>
+            <table>
+                <thead>
+                    <tr><th>Start</th><th>End</th><th>Effect</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0.5</td>
+                        <td>5.0</td>
+                        <td>Spiral winds tighter over time (coiling in)</td>
+                    </tr>
+                    <tr>
+                        <td>5.0</td>
+                        <td>0.5</td>
+                        <td>Spiral unwinds over time (expanding out)</td>
+                    </tr>
+                    <tr>
+                        <td>1.0</td>
+                        <td>10.0</td>
+                        <td>Dramatic tightening, spring compression effect</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="note">
+                Frequency sweep uses a chirp signal, smoothly transitioning through all intermediate values
+                rather than stepping discretely.
+            </div>
+
+            <h3>Chaser Effect</h3>
+            <p>
+                The Chaser Effect creates an animated point that traces along the spiral path,
+                similar to a light chasing around a display. This is achieved by showing only a
+                portion of the spiral at a time and sliding that window along the path.
+            </p>
+
+            <h4>Chaser Parameters</h4>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Range</th><th>Effect</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Trail Length</strong></td>
+                        <td>5 - 500 points</td>
+                        <td>How many points are visible at once. Short = fast-moving dot, long = comet-like trail.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Point Repetitions</strong></td>
+                        <td>1 - 100</td>
+                        <td>How many times each window position is repeated. Higher = slower movement, smoother animation.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Chaser Effect Tips</h4>
+            <ul>
+                <li><strong>Short trail (5-20)</strong> - Creates a single moving point, like a bouncing ball</li>
+                <li><strong>Medium trail (50-100)</strong> - Creates a comet effect with a visible tail</li>
+                <li><strong>Long trail (200-500)</strong> - Shows most of the spiral, with one end appearing to draw</li>
+                <li><strong>Low repetitions (1-5)</strong> - Fast movement, energetic animation</li>
+                <li><strong>High repetitions (50-100)</strong> - Slow, smooth movement, hypnotic effect</li>
+            </ul>
+
+            <h3>Creative Combinations</h3>
+
+            <h4>Spiral + Rotation Effect</h4>
+            <p>
+                After generating a spiral, apply the Rotation effect from the main panel:
+            </p>
+            <ul>
+                <li>Clockwise rotation makes the spiral appear to "unwind"</li>
+                <li>Counter-clockwise rotation makes it appear to "wind up"</li>
+                <li>Combined with frequency sweep, creates mesmerizing animations</li>
+            </ul>
+
+            <h4>Spiral + Kaleidoscope</h4>
+            <p>
+                The Kaleidoscope effect with a spiral creates stunning symmetrical patterns:
+            </p>
+            <ul>
+                <li>4-way symmetry creates a pinwheel effect</li>
+                <li>6-way symmetry creates snowflake-like patterns</li>
+                <li>8+ sections create mandala-style designs</li>
+            </ul>
+
+            <h4>Spiral + Wavy Effect</h4>
+            <p>
+                Adding the Wavy effect to a spiral creates organic, tentacle-like patterns:
+            </p>
+            <ul>
+                <li>Low frequency wavy = gentle undulation</li>
+                <li>High frequency wavy = frilly, ruffled edges</li>
+            </ul>
+
+            <h3>Spiral Recipes</h3>
+            <table>
+                <thead>
+                    <tr><th>Pattern Name</th><th>X: a/b</th><th>Y: a/b</th><th>Additional Effects</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Galaxy Arm</strong></td>
+                        <td>1.0 / 1.5</td>
+                        <td>1.0 / 1.5</td>
+                        <td>Slow rotation CW, Kaleidoscope 4</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Spring Coil</strong></td>
+                        <td>0.3 / 8.0</td>
+                        <td>0.3 / 8.0</td>
+                        <td>Shrink effect</td>
+                    </tr>
+                    <tr>
+                        <td><strong>DNA Helix</strong></td>
+                        <td>1.0 / 5.0</td>
+                        <td>0.3 / 1.0</td>
+                        <td>Rotation CW</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Nautilus Shell</strong></td>
+                        <td>1.5 / 2.0</td>
+                        <td>1.5 / 2.0</td>
+                        <td>Frequency sweep 1.0 &rarr; 5.0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hypno Wheel</strong></td>
+                        <td>1.0 / 3.0</td>
+                        <td>1.0 / 3.0</td>
+                        <td>Rotation CCW + Chaser (trail 100)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Flower Spiral</strong></td>
+                        <td>1.0 / 2.0</td>
+                        <td>1.0 / 3.0</td>
+                        <td>Kaleidoscope 6 with mirror</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Comparing to Sum of Harmonics</h3>
+            <table>
+                <thead>
+                    <tr><th>Aspect</th><th>Sum of Harmonics</th><th>Archimedean Spiral</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Basic Shape</strong></td>
+                        <td>Closed loops (Lissajous)</td>
+                        <td>Expanding outward spiral</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Center</strong></td>
+                        <td>Pattern often passes through center</td>
+                        <td>Starts at center, expands outward</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Complexity</strong></td>
+                        <td>Add more terms for complexity</td>
+                        <td>Use unequal X/Y for complexity</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Best For</strong></td>
+                        <td>Symmetrical, interlocking patterns</td>
+                        <td>Outward-flowing, organic patterns</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                Experiment! The preview updates in real-time as you adjust parameters.
+                Move the sliders and watch how the spiral transforms to develop intuition
+                for how each parameter affects the output.
+            </div>
+        </section>
+
+        <!-- Image Converter -->
+        <section id="image-converter">
+            <h2>// Image to Coordinates Converter //</h2>
+
+            <p>
+                The <code>img2txt.py</code> tool converts photos and drawings into XY coordinates that can
+                be displayed on an oscilloscope. It uses computer vision techniques to extract edges and
+                convert them to vector paths.
+            </p>
+
+            <h3>Basic Usage</h3>
+            <pre><code># Basic usage
+python img2txt.py &lt;image_path&gt; [num_points]
+
+# With interactive editor
+python img2txt.py &lt;image_path&gt; [num_points] --edit</code></pre>
+
+            <h3>Examples</h3>
+            <pre><code># Convert a photo with 2000 points and open editor
+python img2txt.py photo.jpg 2000 --edit
+
+# Quick convert a line drawing
+python img2txt.py drawing.png 1000
+
+# Auto-process with default settings
+python img2txt.py logo.png</code></pre>
+
+            <h3>Processing Methods</h3>
+            <table>
+                <thead>
+                    <tr><th>Method</th><th>Description</th><th>Best For</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Simple</strong></td>
+                        <td>Basic sharpening only</td>
+                        <td>Quick processing, clean line art</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Bilateral</strong></td>
+                        <td>Noise reduction + edge preservation</td>
+                        <td>Photos (recommended)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>DoG</strong></td>
+                        <td>Difference of Gaussians technique</td>
+                        <td>Artistic line drawings</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Thresholding Modes</h3>
+            <table>
+                <thead>
+                    <tr><th>Mode</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Binary</strong></td>
+                        <td>Simple threshold (adjustable 0-255)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Adaptive</strong></td>
+                        <td>Auto-adjusts for varying lighting (best for photos)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Interactive Editor Controls</h3>
+            <table>
+                <thead>
+                    <tr><th>Control</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><kbd>Left Drag</kbd></td><td>Erase points</td></tr>
+                    <tr><td><kbd>Right Drag</kbd></td><td>Add points</td></tr>
+                    <tr><td><kbd>Scroll</kbd></td><td>Adjust brush radius</td></tr>
+                    <tr><td><kbd>TAB</kbd></td><td>Toggle erase/add mode</td></tr>
+                    <tr><td><kbd>S</kbd></td><td>Save coordinates</td></tr>
+                    <tr><td><kbd>R</kbd></td><td>Reset to original</td></tr>
+                    <tr><td><kbd>Q</kbd></td><td>Quit editor</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Output</h3>
+            <p>
+                Creates a <code>coordinates.txt</code> file in the same directory that can be loaded
+                directly into the main Oscilloplot application using "Load Text File (.txt)".
+            </p>
+
+            <div class="tip">
+                For best results with photos, use the <code>--edit</code> flag to fine-tune the extracted
+                edges before saving.
+            </div>
+        </section>
+
+        <!-- File Formats -->
+        <section id="file-formats">
+            <h2>// File Formats //</h2>
+
+            <h3>Loading Patterns</h3>
+
+            <h4>MATLAB Format (.m)</h4>
+            <pre><code>x_fun = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5];
+y_fun = [0.5, 0.6, 0.7, 0.6, 0.5, 0.4];</code></pre>
+
+            <h4>Text Format (.txt)</h4>
+            <pre><code>x_fun=[0.0,0.1,0.2,0.3,0.4,0.5];
+y_fun=[0.5,0.6,0.7,0.6,0.5,0.4];</code></pre>
+
+            <h4>NumPy Format (.npz)</h4>
+            <pre><code>import numpy as np
+x_coords = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+y_coords = np.array([0.5, 0.6, 0.7, 0.6, 0.5, 0.4])
+np.savez('pattern.npz', x=x_coords, y=y_coords)</code></pre>
+
+            <h3>Export Format</h3>
+
+            <h4>WAV Audio</h4>
+            <p>
+                Oscilloplot exports stereo 16-bit PCM WAV files where:
+            </p>
+            <ul>
+                <li><strong>Left channel</strong>: X coordinates (horizontal position)</li>
+                <li><strong>Right channel</strong>: Y coordinates (vertical position)</li>
+            </ul>
+            <p>
+                These files can be played through any audio system connected to an XY oscilloscope
+                to recreate the visual pattern.
+            </p>
+        </section>
+
+        <!-- Oscilloscope Setup -->
+        <section id="oscilloscope">
+            <h2>// Connecting to an Oscilloscope //</h2>
+
+            <h3>Step-by-Step Setup</h3>
+            <ol class="steps">
+                <li>
+                    <strong>Set oscilloscope to XY mode</strong><br>
+                    Also called X-Y, dual channel, or Lissajous mode. Consult your oscilloscope manual
+                    for the specific setting.
+                </li>
+                <li>
+                    <strong>Connect audio output</strong><br>
+                    <ul>
+                        <li>Left channel &rarr; X input (Channel 1)</li>
+                        <li>Right channel &rarr; Y input (Channel 2)</li>
+                    </ul>
+                    Use a stereo 3.5mm to dual RCA/BNC adapter cable.
+                </li>
+                <li>
+                    <strong>Adjust oscilloscope settings</strong><br>
+                    <ul>
+                        <li>Set time/div to external or X-Y mode</li>
+                        <li>Adjust gain on both channels equally</li>
+                        <li>Set coupling to AC or DC depending on your pattern</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Start playback in Oscilloplot</strong><br>
+                    Click "Play Audio" to begin sending the signal.
+                </li>
+                <li>
+                    <strong>Fine-tune display</strong><br>
+                    Adjust oscilloscope brightness, focus, and position controls for best visibility.
+                </li>
+            </ol>
+
+            <h3>Recommended Audio Settings</h3>
+            <table>
+                <thead>
+                    <tr><th>Setting</th><th>Recommended Value</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Sample Rate</td><td>100-200 kHz (1000 Hz &times; 100-200 multiplier)</td></tr>
+                    <tr><td>Duration</td><td>1-2 seconds for smooth looping</td></tr>
+                    <tr><td>Pattern Repeats</td><td>100-500 for animated effects</td></tr>
+                </tbody>
+            </table>
+
+            <div class="warning">
+                Make sure your audio output volume is set to an appropriate level before connecting
+                to your oscilloscope. Very high volumes could potentially damage sensitive equipment.
+            </div>
+        </section>
+
+        <!-- Optimized Version -->
+        <section id="optimized">
+            <h2>// Optimized Version //</h2>
+
+            <p>
+                The optimized version (<code>oscilloscope_gui_optimized.py</code>) provides dramatically
+                better performance for smoother operation.
+            </p>
+
+            <h3>Key Optimizations</h3>
+            <table>
+                <thead>
+                    <tr><th>Technique</th><th>Benefit</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Matplotlib Blitting</strong></td>
+                        <td>Only redraws changed elements (10-100x faster rendering)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Circular NumPy Buffers</strong></td>
+                        <td>Pre-allocated arrays eliminate memory allocations</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Smart Decimation</strong></td>
+                        <td>Adaptive downsampling for smooth rendering</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cached Background</strong></td>
+                        <td>Background saved and restored for each frame</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Performance Comparison</h3>
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th>Original</th><th>Optimized</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>CPU Usage</td><td>40-80%</td><td>5-15%</td></tr>
+                    <tr><td>Frame Time</td><td>50-200ms</td><td>2-8ms</td></tr>
+                    <tr><td>Memory Allocs/sec</td><td>~500</td><td>~10</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use the Optimized Version</h3>
+            <ul>
+                <li>For general everyday use (recommended as default)</li>
+                <li>When using large window sizes (&gt;5,000 samples)</li>
+                <li>When CPU usage is a concern</li>
+                <li>For longer sessions or presentations</li>
+                <li>On older or less powerful computers</li>
+            </ul>
+        </section>
+
+        <!-- Troubleshooting -->
+        <section id="troubleshooting">
+            <h2>// Troubleshooting //</h2>
+
+            <h3>No Audio Output</h3>
+            <ul>
+                <li>Check that your audio device is selected in system settings</li>
+                <li>Verify the sample rate is supported by your sound card</li>
+                <li>Try lowering the playback multiplier to reduce the actual sample rate</li>
+                <li>Check system volume and make sure audio is not muted</li>
+            </ul>
+
+            <h3>Laggy Preview</h3>
+            <ul>
+                <li>Use the optimized version (<code>oscilloscope_gui_optimized.py</code>)</li>
+                <li>Reduce Window Size in Live Preview settings to 2,000-3,000 samples</li>
+                <li>Lower the FPS setting to 15-20</li>
+                <li>Disable Live Preview entirely during audio generation</li>
+            </ul>
+
+            <h3>Image Converter Errors</h3>
+            <ul>
+                <li>Ensure OpenCV is installed: <code>pip install opencv-python</code></li>
+                <li>Try different processing methods (Simple, Bilateral, DoG)</li>
+                <li>Use the <code>--edit</code> flag to adjust parameters interactively</li>
+                <li>Check that the image file exists and is readable</li>
+            </ul>
+
+            <h3>Pattern Looks Wrong on Oscilloscope</h3>
+            <ul>
+                <li>Check X/Y channel connections aren't swapped</li>
+                <li>Ensure both channels have the same gain setting</li>
+                <li>Verify oscilloscope is in XY mode, not time-base mode</li>
+                <li>Try adjusting the audio output volume</li>
+            </ul>
+
+            <h3>Effects Not Visible</h3>
+            <ul>
+                <li>Click "Apply & Generate" after changing effect settings</li>
+                <li>Ensure the effect checkbox is enabled</li>
+                <li>Try increasing effect parameters (amplitude, depth, etc.)</li>
+                <li>Make sure Pattern Repeats is high enough for animated effects</li>
+            </ul>
+
+            <h3>Application Won't Start</h3>
+            <ul>
+                <li>Verify Python 3.8+ is installed: <code>python --version</code></li>
+                <li>Check all dependencies are installed: <code>pip install -r requirements.txt</code></li>
+                <li>Try running from command line to see error messages</li>
+                <li>Make sure you're in the correct directory</li>
+            </ul>
+        </section>
+    </div>
+
+    <footer>
+        <div class="waveform-indicator">
+            <svg viewBox="0 0 100 30">
+                <path d="M0,15 Q12.5,5 25,15 T50,15 T75,15 T100,15"></path>
+            </svg>
+        </div>
+        <p><strong>OSCILLOPLOT</strong></p>
+        <p>XY Audio Oscilloscope Generator</p>
+        <p style="font-size: 0.85em; margin-top: 15px;">Inspired by classic Tektronix oscilloscopes from the 90s</p>
+        <p style="font-size: 0.8em; opacity: 0.6;">Built with Python | NumPy | Matplotlib | sounddevice | Tkinter | OpenCV</p>
+    </footer>
+
+    <script>
+        // ==========================================
+        // Interactive Oscilloscope Demos
+        // ==========================================
+
+        // Utility: Draw oscilloscope grid
+        function drawGrid(ctx, width, height) {
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.15)';
+            ctx.lineWidth = 0.5;
+
+            // Minor grid
+            const gridSize = width / 10;
+            for (let i = 0; i <= 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(width, i * gridSize);
+                ctx.stroke();
+            }
+
+            // Major axes
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(width / 2, 0);
+            ctx.lineTo(width / 2, height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+        }
+
+        // ==========================================
+        // Lissajous Figure Demo
+        // ==========================================
+        let lissajousAnimating = false;
+        let lissajousAnimationId = null;
+        let lissajousPhaseOffset = 0;
+
+        function getLissajousParams() {
+            return {
+                xFreq: parseFloat(document.getElementById('lissXFreq').value),
+                xAmp: parseFloat(document.getElementById('lissXAmp').value),
+                xPhase: parseFloat(document.getElementById('lissXPhase').value),
+                yFreq: parseFloat(document.getElementById('lissYFreq').value),
+                yAmp: parseFloat(document.getElementById('lissYAmp').value),
+                yPhase: parseFloat(document.getElementById('lissYPhase').value)
+            };
+        }
+
+        function updateLissajousDisplay() {
+            const p = getLissajousParams();
+            document.getElementById('lissXFreqVal').textContent = p.xFreq;
+            document.getElementById('lissXAmpVal').textContent = p.xAmp.toFixed(1);
+            document.getElementById('lissXPhaseVal').textContent = p.xPhase.toFixed(2);
+            document.getElementById('lissYFreqVal').textContent = p.yFreq;
+            document.getElementById('lissYAmpVal').textContent = p.yAmp.toFixed(1);
+            document.getElementById('lissYPhaseVal').textContent = p.yPhase.toFixed(2);
+
+            document.getElementById('lissFormulaX').textContent =
+                `${p.xAmp.toFixed(1)} · sin(${p.xFreq}t + ${p.xPhase.toFixed(2)})`;
+            document.getElementById('lissFormulaY').textContent =
+                `${p.yAmp.toFixed(1)} · sin(${p.yFreq}t + ${p.yPhase.toFixed(2)})`;
+        }
+
+        function drawLissajous(phaseOffset = 0) {
+            const canvas = document.getElementById('lissajousCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const p = getLissajousParams();
+
+            // Clear and draw grid
+            ctx.fillStyle = '#020202';
+            ctx.fillRect(0, 0, width, height);
+            drawGrid(ctx, width, height);
+
+            // Calculate points
+            const points = [];
+            const numPoints = 1000;
+            for (let i = 0; i <= numPoints; i++) {
+                const t = (i / numPoints) * 2 * Math.PI;
+                const x = p.xAmp * Math.sin(p.xFreq * t + p.xPhase + phaseOffset);
+                const y = p.yAmp * Math.sin(p.yFreq * t + p.yPhase);
+                points.push({ x, y });
+            }
+
+            // Draw with phosphor glow effect
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+            for (let i = 0; i < points.length; i++) {
+                const px = (points[i].x + 1) * width / 2 * 0.85 + width * 0.075;
+                const py = (1 - points[i].y) * height / 2 * 0.85 + height * 0.075;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Brighter core
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#33ff66';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            for (let i = 0; i < points.length; i++) {
+                const px = (points[i].x + 1) * width / 2 * 0.85 + width * 0.075;
+                const py = (1 - points[i].y) * height / 2 * 0.85 + height * 0.075;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+        }
+
+        function setLissajousPreset(xFreq, yFreq, xPhase, yPhase) {
+            document.getElementById('lissXFreq').value = xFreq;
+            document.getElementById('lissYFreq').value = yFreq;
+            document.getElementById('lissXPhase').value = xPhase;
+            document.getElementById('lissYPhase').value = yPhase;
+            document.getElementById('lissXAmp').value = 1;
+            document.getElementById('lissYAmp').value = 1;
+            updateLissajousDisplay();
+            drawLissajous();
+        }
+
+        function toggleLissajousAnimation() {
+            const btn = document.getElementById('lissAnimateBtn');
+            lissajousAnimating = !lissajousAnimating;
+
+            if (lissajousAnimating) {
+                btn.classList.add('active');
+                btn.textContent = 'Stop Animation';
+                animateLissajous();
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = 'Animate Phase';
+                if (lissajousAnimationId) {
+                    cancelAnimationFrame(lissajousAnimationId);
+                }
+            }
+        }
+
+        function animateLissajous() {
+            if (!lissajousAnimating) return;
+            lissajousPhaseOffset += 0.02;
+            drawLissajous(lissajousPhaseOffset);
+            lissajousAnimationId = requestAnimationFrame(animateLissajous);
+        }
+
+        // ==========================================
+        // Archimedean Spiral Demo
+        // ==========================================
+        let spiralAnimating = false;
+        let spiralAnimationId = null;
+        let spiralDrawProgress = 0;
+
+        function getSpiralParams() {
+            return {
+                xA: parseFloat(document.getElementById('spiralXA').value),
+                xB: parseFloat(document.getElementById('spiralXB').value),
+                yA: parseFloat(document.getElementById('spiralYA').value),
+                yB: parseFloat(document.getElementById('spiralYB').value),
+                tMax: parseFloat(document.getElementById('spiralTMax').value)
+            };
+        }
+
+        function updateSpiralDisplay() {
+            const p = getSpiralParams();
+            document.getElementById('spiralXAVal').textContent = p.xA.toFixed(2);
+            document.getElementById('spiralXBVal').textContent = p.xB.toFixed(1);
+            document.getElementById('spiralYAVal').textContent = p.yA.toFixed(2);
+            document.getElementById('spiralYBVal').textContent = p.yB.toFixed(1);
+            document.getElementById('spiralTMaxVal').textContent = Math.round(p.tMax);
+
+            document.getElementById('spiralFormulaX').innerHTML =
+                `${p.xA.toFixed(2)} &middot; t &middot; sin(${p.xB.toFixed(1)}t)`;
+            document.getElementById('spiralFormulaY').innerHTML =
+                `${p.yA.toFixed(2)} &middot; t &middot; cos(${p.yB.toFixed(1)}t)`;
+        }
+
+        function drawSpiral(progress = 1) {
+            const canvas = document.getElementById('spiralCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const p = getSpiralParams();
+
+            // Clear and draw grid
+            ctx.fillStyle = '#020202';
+            ctx.fillRect(0, 0, width, height);
+            drawGrid(ctx, width, height);
+
+            // Calculate points
+            const points = [];
+            const numPoints = Math.floor(1000 * progress);
+            for (let i = 0; i <= numPoints; i++) {
+                const t = (i / 1000) * p.tMax;
+                const x = p.xA * t * Math.sin(p.xB * t);
+                const y = p.yA * t * Math.cos(p.yB * t);
+                points.push({ x, y });
+            }
+
+            if (points.length < 2) return;
+
+            // Find bounds for scaling
+            let maxAbs = 0;
+            for (const pt of points) {
+                maxAbs = Math.max(maxAbs, Math.abs(pt.x), Math.abs(pt.y));
+            }
+            const scale = maxAbs > 0 ? 0.85 / maxAbs : 1;
+
+            // Draw with phosphor glow effect
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+            for (let i = 0; i < points.length; i++) {
+                const px = (points[i].x * scale + 1) * width / 2;
+                const py = (1 - points[i].y * scale) * height / 2;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Brighter core
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#33ff66';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            for (let i = 0; i < points.length; i++) {
+                const px = (points[i].x * scale + 1) * width / 2;
+                const py = (1 - points[i].y * scale) * height / 2;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Draw bright dot at current position if animating
+            if (spiralAnimating && points.length > 0) {
+                const lastPt = points[points.length - 1];
+                const px = (lastPt.x * scale + 1) * width / 2;
+                const py = (1 - lastPt.y * scale) * height / 2;
+                ctx.fillStyle = '#88ffaa';
+                ctx.shadowColor = '#00ff41';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(px, py, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function setSpiralPreset(xA, xB, yA, yB, tMax) {
+            document.getElementById('spiralXA').value = xA;
+            document.getElementById('spiralXB').value = xB;
+            document.getElementById('spiralYA').value = yA;
+            document.getElementById('spiralYB').value = yB;
+            document.getElementById('spiralTMax').value = tMax;
+            updateSpiralDisplay();
+            spiralDrawProgress = 1;
+            drawSpiral(1);
+        }
+
+        function toggleSpiralAnimation() {
+            const btn = document.getElementById('spiralAnimateBtn');
+            spiralAnimating = !spiralAnimating;
+
+            if (spiralAnimating) {
+                btn.classList.add('active');
+                btn.textContent = 'Stop Animation';
+                spiralDrawProgress = 0;
+                animateSpiral();
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = 'Animate Drawing';
+                if (spiralAnimationId) {
+                    cancelAnimationFrame(spiralAnimationId);
+                }
+                spiralDrawProgress = 1;
+                drawSpiral(1);
+            }
+        }
+
+        function animateSpiral() {
+            if (!spiralAnimating) return;
+            spiralDrawProgress += 0.008;
+            if (spiralDrawProgress > 1) spiralDrawProgress = 0;
+            drawSpiral(spiralDrawProgress);
+            spiralAnimationId = requestAnimationFrame(animateSpiral);
+        }
+
+        // ==========================================
+        // Initialize on load
+        // ==========================================
+        function initDemos() {
+            // Set up event listeners for Lissajous
+            const lissInputs = ['lissXFreq', 'lissXAmp', 'lissXPhase', 'lissYFreq', 'lissYAmp', 'lissYPhase'];
+            lissInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', () => {
+                        updateLissajousDisplay();
+                        if (!lissajousAnimating) drawLissajous();
+                    });
+                }
+            });
+
+            // Set up event listeners for Spiral
+            const spiralInputs = ['spiralXA', 'spiralXB', 'spiralYA', 'spiralYB', 'spiralTMax'];
+            spiralInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', () => {
+                        updateSpiralDisplay();
+                        if (!spiralAnimating) drawSpiral(1);
+                    });
+                }
+            });
+
+            // Handle canvas resize
+            function resizeCanvases() {
+                const lissCanvas = document.getElementById('lissajousCanvas');
+                const spiralCanvas = document.getElementById('spiralCanvas');
+
+                [lissCanvas, spiralCanvas].forEach(canvas => {
+                    if (canvas) {
+                        const container = canvas.parentElement;
+                        const size = Math.min(container.clientWidth, 500);
+                        canvas.width = size;
+                        canvas.height = size;
+                    }
+                });
+
+                if (!lissajousAnimating) drawLissajous();
+                if (!spiralAnimating) drawSpiral(1);
+            }
+
+            // Initial resize and draw
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+
+            // Initial display update
+            updateLissajousDisplay();
+            updateSpiralDisplay();
+        }
+
+        // ==========================================
+        // Effects Playground Demo
+        // ==========================================
+        let effectsAnimating = false;
+        let effectsAnimationId = null;
+        let effectsTime = 0;
+        let currentEffect = 'none';
+
+        // Generate base 5-petal Lissajous flower: X = sin(5t), Y = cos(4t)
+        function generate5PetalFlower() {
+            const points = [];
+            const numPoints = 1000;
+            for (let i = 0; i <= numPoints; i++) {
+                const t = (i / numPoints) * 2 * Math.PI;
+                const x = Math.sin(5 * t);
+                const y = Math.cos(4 * t);
+                points.push({ x, y });
+            }
+            return points;
+        }
+
+        // Apply effects to points
+        function applyEffect(points, effect, time) {
+            let result = points.map(p => ({ x: p.x, y: p.y }));
+
+            switch (effect) {
+                case 'rotation': {
+                    const angle = effectsAnimating
+                        ? time * parseFloat(document.getElementById('effectRotSpeed').value) * 0.02
+                        : parseFloat(document.getElementById('effectRotAngle').value) * Math.PI / 180;
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+                    result = result.map(p => ({
+                        x: p.x * cos - p.y * sin,
+                        y: p.x * sin + p.y * cos
+                    }));
+                    break;
+                }
+
+                case 'mirror': {
+                    const mirrorX = document.getElementById('effectMirrorX').checked;
+                    const mirrorY = document.getElementById('effectMirrorY').checked;
+                    let mirrored = [...result];
+                    if (mirrorX) {
+                        mirrored = mirrored.concat(result.map(p => ({ x: -p.x, y: p.y })));
+                    }
+                    if (mirrorY) {
+                        const len = mirrored.length;
+                        for (let i = 0; i < len; i++) {
+                            mirrored.push({ x: mirrored[i].x, y: -mirrored[i].y });
+                        }
+                    }
+                    result = mirrored;
+                    break;
+                }
+
+                case 'scale': {
+                    const baseScale = parseFloat(document.getElementById('effectScale').value);
+                    const speed = parseFloat(document.getElementById('effectScaleSpeed').value);
+                    const scale = effectsAnimating
+                        ? 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(time * speed * 0.05))
+                        : baseScale;
+                    result = result.map(p => ({ x: p.x * scale, y: p.y * scale }));
+                    break;
+                }
+
+                case 'xfade': {
+                    const baseXScale = parseFloat(document.getElementById('effectXFade').value);
+                    const speed = parseFloat(document.getElementById('effectXFadeSpeed').value);
+                    const xScale = effectsAnimating
+                        ? 0.5 + 0.5 * Math.sin(time * speed * 0.05)
+                        : baseXScale;
+                    result = result.map(p => ({ x: p.x * xScale, y: p.y }));
+                    break;
+                }
+
+                case 'yfade': {
+                    const baseYScale = parseFloat(document.getElementById('effectYFade').value);
+                    const speed = parseFloat(document.getElementById('effectYFadeSpeed').value);
+                    const yScale = effectsAnimating
+                        ? 0.5 + 0.5 * Math.sin(time * speed * 0.05)
+                        : baseYScale;
+                    result = result.map(p => ({ x: p.x, y: p.y * yScale }));
+                    break;
+                }
+
+                case 'noise': {
+                    const noiseX = parseFloat(document.getElementById('effectNoiseX').value);
+                    const noiseY = parseFloat(document.getElementById('effectNoiseY').value);
+                    result = result.map(p => ({
+                        x: p.x + (Math.random() - 0.5) * 2 * noiseX,
+                        y: p.y + (Math.random() - 0.5) * 2 * noiseY
+                    }));
+                    break;
+                }
+
+                case 'wavy': {
+                    const amp = parseFloat(document.getElementById('effectWavyAmp').value);
+                    const freq = parseFloat(document.getElementById('effectWavyFreq').value);
+                    const speed = parseFloat(document.getElementById('effectWavySpeed').value);
+                    const phase = effectsAnimating ? time * speed * 0.03 : 0;
+                    result = result.map((p, i) => ({
+                        x: p.x + amp * Math.sin(freq * i / result.length * 2 * Math.PI + phase),
+                        y: p.y + amp * Math.cos(freq * i / result.length * 2 * Math.PI + phase)
+                    }));
+                    break;
+                }
+
+                case 'tremolo': {
+                    const depth = parseFloat(document.getElementById('effectTremDepth').value);
+                    const rate = parseFloat(document.getElementById('effectTremRate').value);
+                    const mod = effectsAnimating
+                        ? 1 - depth * 0.5 * (1 + Math.sin(time * rate * 0.1))
+                        : 1 - depth * 0.5;
+                    result = result.map(p => ({ x: p.x * mod, y: p.y * mod }));
+                    break;
+                }
+
+                case 'echo': {
+                    const count = parseInt(document.getElementById('effectEchoCount').value);
+                    const decay = parseFloat(document.getElementById('effectEchoDecay').value);
+                    const offset = parseFloat(document.getElementById('effectEchoOffset').value);
+                    let echoed = [];
+                    for (let e = 0; e <= count; e++) {
+                        const scale = Math.pow(decay, e);
+                        const offsetAmount = e * offset;
+                        result.forEach(p => {
+                            echoed.push({
+                                x: p.x * scale * (1 - offsetAmount * 0.5),
+                                y: p.y * scale * (1 - offsetAmount * 0.5),
+                                alpha: scale
+                            });
+                        });
+                    }
+                    result = echoed;
+                    break;
+                }
+
+                case 'kaleidoscope': {
+                    const sections = parseInt(document.getElementById('effectKaleidoSections').value);
+                    const mirror = document.getElementById('effectKaleidoMirror').checked;
+                    const speed = parseFloat(document.getElementById('effectKaleidoSpeed').value);
+                    const baseRotation = effectsAnimating ? time * speed * 0.01 : 0;
+                    let kaleid = [];
+                    for (let s = 0; s < sections; s++) {
+                        const angle = (s / sections) * 2 * Math.PI + baseRotation;
+                        const cos = Math.cos(angle);
+                        const sin = Math.sin(angle);
+                        const shouldMirror = mirror && s % 2 === 1;
+                        result.forEach(p => {
+                            let px = p.x, py = p.y;
+                            if (shouldMirror) px = -px;
+                            kaleid.push({
+                                x: px * cos - py * sin,
+                                y: px * sin + py * cos
+                            });
+                        });
+                    }
+                    result = kaleid;
+                    break;
+                }
+
+                case 'distortion': {
+                    const type = document.getElementById('effectDistType').value;
+                    const threshold = parseFloat(document.getElementById('effectDistThreshold').value);
+                    result = result.map(p => {
+                        let x = p.x, y = p.y;
+                        if (type === 'hard') {
+                            x = Math.max(-threshold, Math.min(threshold, x));
+                            y = Math.max(-threshold, Math.min(threshold, y));
+                        } else if (type === 'soft') {
+                            x = Math.tanh(x / threshold) * threshold;
+                            y = Math.tanh(y / threshold) * threshold;
+                        } else if (type === 'fold') {
+                            while (Math.abs(x) > threshold) {
+                                x = x > threshold ? 2 * threshold - x : -2 * threshold - x;
+                            }
+                            while (Math.abs(y) > threshold) {
+                                y = y > threshold ? 2 * threshold - y : -2 * threshold - y;
+                            }
+                        }
+                        return { x, y };
+                    });
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        function drawEffectsDemo() {
+            const canvas = document.getElementById('effectsCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear and draw grid
+            ctx.fillStyle = '#020202';
+            ctx.fillRect(0, 0, width, height);
+            drawGrid(ctx, width, height);
+
+            // Generate and apply effect
+            let points = generate5PetalFlower();
+            points = applyEffect(points, currentEffect, effectsTime);
+
+            if (points.length === 0) return;
+
+            // Find bounds for scaling
+            let maxAbs = 0;
+            for (const pt of points) {
+                maxAbs = Math.max(maxAbs, Math.abs(pt.x), Math.abs(pt.y));
+            }
+            const scale = maxAbs > 0 ? 0.4 / maxAbs : 0.4;
+
+            // Draw with phosphor glow effect
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = 6;
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth = 1.2;
+
+            // For echo effect, handle alpha
+            if (currentEffect === 'echo' && points[0].alpha !== undefined) {
+                // Group by alpha and draw separately
+                const groups = {};
+                points.forEach(p => {
+                    const key = p.alpha.toFixed(2);
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(p);
+                });
+                Object.keys(groups).sort((a, b) => parseFloat(a) - parseFloat(b)).forEach(key => {
+                    const alpha = parseFloat(key);
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    groups[key].forEach((p, i) => {
+                        const px = (p.x * scale + 0.5) * width;
+                        const py = (0.5 - p.y * scale) * height;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    });
+                    ctx.stroke();
+                });
+                ctx.globalAlpha = 1;
+            } else {
+                ctx.beginPath();
+                for (let i = 0; i < points.length; i++) {
+                    const px = (points[i].x * scale + 0.5) * width;
+                    const py = (0.5 - points[i].y * scale) * height;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Brighter core
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#33ff66';
+                ctx.lineWidth = 0.4;
+                ctx.beginPath();
+                for (let i = 0; i < points.length; i++) {
+                    const px = (points[i].x * scale + 0.5) * width;
+                    const py = (0.5 - points[i].y * scale) * height;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function selectEffect(effect) {
+            currentEffect = effect;
+
+            // Update tabs
+            document.querySelectorAll('.effect-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.effect === effect);
+            });
+
+            // Update panels
+            document.querySelectorAll('.effect-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            const panel = document.getElementById('panel-' + effect);
+            if (panel) panel.style.display = 'block';
+
+            // Update description
+            const descriptions = {
+                'none': '5-petal Lissajous flower pattern',
+                'rotation': 'Rotates the pattern around center',
+                'mirror': 'Creates mirror reflections across axes',
+                'scale': 'Scales/shrinks the entire pattern',
+                'xfade': 'Fades/scales the X axis only',
+                'yfade': 'Fades/scales the Y axis only',
+                'noise': 'Adds random jitter to coordinates',
+                'wavy': 'Adds sinusoidal modulation',
+                'tremolo': 'Amplitude modulation effect',
+                'echo': 'Creates decaying echo copies',
+                'kaleidoscope': 'Creates symmetrical copies',
+                'distortion': 'Clips or folds the signal'
+            };
+            document.getElementById('effectDescription').textContent = descriptions[effect] || '';
+
+            if (!effectsAnimating) drawEffectsDemo();
+        }
+
+        function toggleEffectsAnimation() {
+            const btn = document.getElementById('effectsAnimateBtn');
+            effectsAnimating = !effectsAnimating;
+
+            if (effectsAnimating) {
+                btn.classList.add('active');
+                btn.textContent = 'Stop Animation';
+                animateEffects();
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = 'Animate Effect';
+                if (effectsAnimationId) {
+                    cancelAnimationFrame(effectsAnimationId);
+                }
+                drawEffectsDemo();
+            }
+        }
+
+        function animateEffects() {
+            if (!effectsAnimating) return;
+            effectsTime += 1;
+            drawEffectsDemo();
+            effectsAnimationId = requestAnimationFrame(animateEffects);
+        }
+
+        function initEffectsDemo() {
+            // Set up effect tab clicks
+            document.querySelectorAll('.effect-tab').forEach(tab => {
+                tab.addEventListener('click', () => selectEffect(tab.dataset.effect));
+            });
+
+            // Set up all effect control listeners
+            const effectInputs = [
+                'effectRotAngle', 'effectRotSpeed', 'effectScale', 'effectScaleSpeed',
+                'effectXFade', 'effectXFadeSpeed', 'effectYFade', 'effectYFadeSpeed',
+                'effectNoiseX', 'effectNoiseY', 'effectWavyAmp', 'effectWavyFreq', 'effectWavySpeed',
+                'effectTremDepth', 'effectTremRate', 'effectEchoCount', 'effectEchoDecay', 'effectEchoOffset',
+                'effectKaleidoSections', 'effectKaleidoSpeed', 'effectDistThreshold'
+            ];
+
+            effectInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', () => {
+                        // Update value displays
+                        const valEl = document.getElementById(id + 'Val');
+                        if (valEl) {
+                            if (id === 'effectRotAngle') valEl.textContent = el.value + '°';
+                            else if (id.includes('Count') || id.includes('Sections') || id.includes('Freq')) valEl.textContent = el.value;
+                            else valEl.textContent = parseFloat(el.value).toFixed(2);
+                        }
+                        if (!effectsAnimating) drawEffectsDemo();
+                    });
+                }
+            });
+
+            // Checkbox listeners
+            ['effectMirrorX', 'effectMirrorY', 'effectKaleidoMirror'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', () => {
+                        if (!effectsAnimating) drawEffectsDemo();
+                    });
+                }
+            });
+
+            // Select listener
+            const distType = document.getElementById('effectDistType');
+            if (distType) {
+                distType.addEventListener('change', () => {
+                    if (!effectsAnimating) drawEffectsDemo();
+                });
+            }
+
+            // Handle effects canvas resize
+            const effectsCanvas = document.getElementById('effectsCanvas');
+            if (effectsCanvas) {
+                const resizeEffectsCanvas = () => {
+                    const container = effectsCanvas.parentElement;
+                    const size = Math.min(container.clientWidth, 500);
+                    effectsCanvas.width = size;
+                    effectsCanvas.height = size;
+                    if (!effectsAnimating) drawEffectsDemo();
+                };
+                resizeEffectsCanvas();
+                window.addEventListener('resize', resizeEffectsCanvas);
+            }
+
+            // Initial draw
+            drawEffectsDemo();
+        }
+
+        // Run when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initDemos();
+                initEffectsDemo();
+            });
+        } else {
+            initDemos();
+            initEffectsDemo();
+        }
+    </script>
+</body>
+</html>
