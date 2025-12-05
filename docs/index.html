@@ -1014,7 +1014,7 @@
         <span class="brand-label top-right">HIGH PERFORMANCE C++</span>
         <h1>OSCILLOPLOT</h1>
         <div class="subtitle">XY AUDIO OSCILLOSCOPE GENERATOR</div>
-        <div class="version">// C++ EDITION - USER MANUAL v3.0 //</div>
+        <div class="version">// C++ EDITION - USER MANUAL v1.0.2 //</div>
         <div class="waveform-indicator">
             <svg viewBox="0 0 100 30">
                 <path d="M0,15 Q12.5,5 25,15 T50,15 T75,15 T100,15"></path>
@@ -1063,7 +1063,7 @@
                 </div>
                 <div class="feature-card new-cpp">
                     <h4>3D Shape Generator</h4>
-                    <p>Project rotating 3D shapes (cube, torus, icosahedron, knots) to 2D for mesmerizing wireframe animations.</p>
+                    <p>19 shapes including Mobius strip, Klein bottle, DNA helix, springs, stars, and custom 3D text rendering!</p>
                 </div>
                 <div class="feature-card">
                     <h4>Audio Output</h4>
@@ -1112,12 +1112,16 @@
                 <li><strong>Phosphor Presets</strong> - P31, P1 (pure green), P7 (blue-white), Amber</li>
             </ul>
 
-            <h4>3D Shape Generator</h4>
+            <h4>3D Shape Generator (19 Shapes + 3D Text)</h4>
             <p>Project and animate 3D wireframe shapes:</p>
             <ul>
-                <li><strong>Platonic Solids</strong> - Cube, Tetrahedron, Octahedron, Icosahedron</li>
+                <li><strong>Platonic Solids</strong> - Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron</li>
                 <li><strong>Curved Surfaces</strong> - Sphere, Torus, Cylinder, Cone</li>
-                <li><strong>Complex Shapes</strong> - 3D Spirals, Trefoil Knots</li>
+                <li><strong>Prisms</strong> - Pyramid, N-sided Prism (configurable sides)</li>
+                <li><strong>Complex Shapes</strong> - 3D Spiral, Double Helix (DNA-like), Trefoil Knot</li>
+                <li><strong>Topological Surfaces</strong> - Mobius Strip, Klein Bottle</li>
+                <li><strong>Special Shapes</strong> - Spring (coil), 3D Star (configurable points)</li>
+                <li><strong>3D Text</strong> - Type any text and render as a rotating wireframe!</li>
                 <li><strong>Perspective Projection</strong> - Adjustable camera distance</li>
                 <li><strong>Animated Rotation</strong> - Independent X/Y/Z rotation speeds</li>
             </ul>
@@ -1447,10 +1451,10 @@ cmake --build build
             <h2>// 3D Shape Generator //</h2>
 
             <div class="new-feature">
-                Project and animate 3D wireframe shapes onto the oscilloscope display.
+                Project and animate 3D wireframe shapes onto the oscilloscope display. Now with 19 shapes plus 3D text rendering!
             </div>
 
-            <h3>Available Shapes</h3>
+            <h3>Available Shapes (19 Total)</h3>
             <table>
                 <thead>
                     <tr><th>Category</th><th>Shapes</th><th>Description</th></tr>
@@ -1458,7 +1462,7 @@ cmake --build build
                 <tbody>
                     <tr>
                         <td><strong>Platonic Solids</strong></td>
-                        <td>Cube, Tetrahedron, Octahedron, Icosahedron</td>
+                        <td>Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron</td>
                         <td>Regular polyhedra with equal faces</td>
                     </tr>
                     <tr>
@@ -1467,14 +1471,56 @@ cmake --build build
                         <td>Wireframe approximations of smooth surfaces</td>
                     </tr>
                     <tr>
-                        <td><strong>Complex Shapes</strong></td>
-                        <td>3D Spiral, Trefoil Knot</td>
+                        <td><strong>Prisms</strong></td>
+                        <td>Pyramid, N-sided Prism</td>
+                        <td>Extruded polygonal bases</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Complex Curves</strong></td>
+                        <td>3D Spiral, Double Helix, Trefoil Knot</td>
                         <td>Mathematical curves in 3D space</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Topological</strong></td>
+                        <td>Mobius Strip, Klein Bottle</td>
+                        <td>Non-orientable surfaces</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Special</strong></td>
+                        <td>Spring, 3D Star</td>
+                        <td>Coil spring, stellated star</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Text</strong></td>
+                        <td>3D Text</td>
+                        <td>Custom text as wireframe letters</td>
                     </tr>
                 </tbody>
             </table>
 
-            <h3>Parameters</h3>
+            <h3>3D Text Feature</h3>
+            <div class="new-feature">
+                Type any text and render it as a rotating 3D wireframe on your oscilloscope!
+            </div>
+            <p>The 3D Text feature uses a custom stroke-based font system designed specifically for oscilloscope display:</p>
+            <ul>
+                <li><strong>Supported Characters</strong> - A-Z, a-z, 0-9, and common punctuation (. , ! ? - + = * / : @ # &lt; &gt; ( ) [ ] _ ' " &amp;)</li>
+                <li><strong>Depth Control</strong> - Adjust the extrusion depth for a pseudo-3D effect</li>
+                <li><strong>Connect Faces</strong> - Toggle connecting lines between front and back faces</li>
+                <li><strong>Full Rotation</strong> - Rotate text around X, Y, and Z axes</li>
+                <li><strong>Animation</strong> - Enable auto-rotation for spinning text</li>
+            </ul>
+
+            <h4>How to Use 3D Text</h4>
+            <ol class="steps">
+                <li><strong>Open 3D Shape Generator</strong> - View menu &rarr; 3D Shape Generator</li>
+                <li><strong>Select "3D Text"</strong> - Choose from the Shape dropdown (last option)</li>
+                <li><strong>Type your text</strong> - Enter text in the input field (max 64 characters)</li>
+                <li><strong>Press Enter</strong> - Or click "Generate Shape" to render</li>
+                <li><strong>Adjust settings</strong> - Set depth, rotation, and enable animation</li>
+            </ol>
+
+            <h3>Common Parameters</h3>
             <div class="param-list">
                 <div class="param-item">
                     <div class="param-name">Rotation X/Y/Z (degrees)</div>
@@ -1486,12 +1532,12 @@ cmake --build build
                 </div>
                 <div class="param-item">
                     <div class="param-name">Scale</div>
-                    <div class="param-range">Range: 0.1 - 2.0 | Default: 0.8</div>
+                    <div class="param-range">Range: 0.2 - 1.5 | Default: 0.8</div>
                     <p>Overall size of the projected shape.</p>
                 </div>
                 <div class="param-item">
                     <div class="param-name">Perspective</div>
-                    <div class="param-range">Range: 0 - 10 | Default: 2.0</div>
+                    <div class="param-range">Range: 0 - 5 | Default: 2.0</div>
                     <p>Camera distance for perspective projection. 0 = orthographic (no perspective).</p>
                 </div>
                 <div class="param-item">
@@ -1505,20 +1551,53 @@ cmake --build build
                 </div>
             </div>
 
-            <h4>Torus Parameters</h4>
+            <h3>Shape-Specific Parameters</h3>
+
+            <h4>Torus</h4>
             <ul>
-                <li><strong>Major Radius</strong> - Distance from center to tube center</li>
-                <li><strong>Minor Radius</strong> - Tube thickness</li>
+                <li><strong>Major Radius</strong> (0.3 - 1.0) - Distance from center to tube center</li>
+                <li><strong>Minor Radius</strong> (0.1 - 0.5) - Tube thickness</li>
             </ul>
 
-            <h4>Knot Parameters</h4>
+            <h4>Trefoil Knot</h4>
             <ul>
-                <li><strong>P, Q</strong> - Trefoil knot winding numbers (default 2:3)</li>
+                <li><strong>P (windings)</strong> (1.0 - 7.0) - Number of times the knot wraps around one axis</li>
+                <li><strong>Q (windings)</strong> (1.0 - 7.0) - Number of times it wraps around the other axis</li>
+            </ul>
+            <p>Classic trefoil: P=2, Q=3. Try P=3, Q=5 for a more complex knot.</p>
+
+            <h4>Double Helix</h4>
+            <ul>
+                <li><strong>Turns</strong> (1.0 - 10.0) - Number of helix rotations</li>
+                <li><strong>Radius</strong> (0.2 - 0.8) - Helix diameter</li>
+            </ul>
+            <p>Creates a DNA-like double helix with connecting rungs.</p>
+
+            <h4>Prism</h4>
+            <ul>
+                <li><strong>Sides</strong> (3 - 12) - Number of sides (3 = triangular prism, 6 = hexagonal)</li>
+            </ul>
+
+            <h4>3D Star</h4>
+            <ul>
+                <li><strong>Points</strong> (3 - 12) - Number of star points</li>
+                <li><strong>Inner Radius</strong> (0.1 - 0.6) - Distance to inner vertices (smaller = sharper points)</li>
+            </ul>
+
+            <h4>3D Text</h4>
+            <ul>
+                <li><strong>Text Input</strong> - Type your message (A-Z, 0-9, punctuation)</li>
+                <li><strong>Depth</strong> (0.0 - 1.0) - Extrusion depth for 3D effect</li>
+                <li><strong>Connect Faces</strong> - Draw edges between front and back faces</li>
             </ul>
 
             <div class="tip">
                 For a classic "spinning cube" effect, set Rotation Speed Y to 1.0 and enable animation.
                 The perspective parameter adds depth - try values between 2-4 for a natural look.
+            </div>
+
+            <div class="tip">
+                For 3D text, try setting Depth to 0.3 with "Connect Faces" enabled, then animate with Y Speed = 0.5 for a dramatic spinning text effect!
             </div>
         </section>
 

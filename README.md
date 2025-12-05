@@ -5,14 +5,23 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
 ## Features
 
 - **Real-time XY oscilloscope visualization** at 120+ FPS
+- **Physically-accurate CRT phosphor simulation** (Tektronix 465B inspired)
 - **Low-latency audio playback** (<20ms latency)
 - **Multiple pattern generators**:
   - Sine waves, circles, Lissajous curves
   - Hearts, stars, spirals
-  - Sum of harmonics
+  - Sum of harmonics with frequency/phase sweep
   - Random harmonics
   - Freehand drawing canvas
   - Sound pad grid
+- **3D Shape Generator** with 19 shapes:
+  - Platonic solids: Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron
+  - Curved surfaces: Sphere, Torus, Cylinder, Cone
+  - Prisms: Pyramid, N-sided Prism
+  - Complex shapes: 3D Spiral, Double Helix, Trefoil Knot
+  - Topological: Mobius Strip, Klein Bottle
+  - Special: Spring, 3D Star
+  - **3D Text**: Type any text and render it as a rotating 3D wireframe!
 - **Rich effects pipeline**:
   - Rotation (static/animated)
   - X/Y axis fading
@@ -139,8 +148,8 @@ Connect to an oscilloscope in X-Y mode to visualize the patterns on hardware.
 
 - [ ] MIDI input support
 - [ ] VST plugin hosting
-- [ ] More pattern generators
 - [ ] Pattern sequencing/timeline
+- [ ] More 3D shape import (OBJ files)
 
 ## License
 

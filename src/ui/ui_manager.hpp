@@ -137,12 +137,21 @@ struct Shape3DState {
         Tetrahedron,
         Octahedron,
         Icosahedron,
+        Dodecahedron,
         Sphere,
         Torus,
         Cylinder,
         Cone,
+        Pyramid,
+        Prism,
         Spiral3D,
-        Knot
+        Helix,
+        Knot,
+        MobiusStrip,
+        KleinBottle,
+        Spring,
+        Star3D,
+        Text3D
     };
 
     ShapeType shapeType = ShapeType::Cube;
@@ -164,6 +173,22 @@ struct Shape3DState {
     // Spiral/Knot specific
     float knotP = 2.0f;  // Trefoil knot parameters
     float knotQ = 3.0f;
+
+    // Helix specific
+    float helixTurns = 5.0f;
+    float helixRadius = 0.5f;
+
+    // Prism specific
+    int prismSides = 6;
+
+    // Star 3D specific
+    int starPoints = 5;
+    float starInnerRadius = 0.3f;
+
+    // Text 3D specific
+    char textBuffer[64] = "HELLO";
+    float textDepth = 0.3f;
+    bool textConnectFaces = true;
 };
 
 //==============================================================================

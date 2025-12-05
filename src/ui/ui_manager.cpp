@@ -3,6 +3,7 @@
 #include "data/pattern.hpp"
 #include "audio/audio_engine.hpp"
 #include "generators/test_pattern.hpp"
+#include "generators/stroke_font.hpp"
 
 #include <imgui.h>
 #include <implot.h>
@@ -173,6 +174,9 @@ void UIManager::renderMenuBar(App& app) {
 }
 
 void UIManager::renderControlPanel(App& app) {
+    // Position: Left side
+    ImGui::SetNextWindowPos(ImVec2(10, 30), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(280, 450), ImGuiCond_FirstUseEver);
     ImGui::Begin("Controls");
 
     ImGui::Text("Audio Parameters");
@@ -235,6 +239,9 @@ void UIManager::renderControlPanel(App& app) {
 //==============================================================================
 
 void UIManager::renderOscilloscopeDisplay(App& app) {
+    // Position: Center
+    ImGui::SetNextWindowPos(ImVec2(300, 30), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
     // Set minimum window size to ensure display is always visible
     ImGui::SetNextWindowSizeConstraints(ImVec2(400, 400), ImVec2(FLT_MAX, FLT_MAX));
 
@@ -521,6 +528,9 @@ void UIManager::renderPhosphorScope(App& app) {
 void UIManager::renderEffectsPanel(App& app) {
     auto& fx = app.getEffects();
 
+    // Position: Right side, top
+    ImGui::SetNextWindowPos(ImVec2(910, 30), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(360, 350), ImGuiCond_FirstUseEver);
     ImGui::Begin("Effects", &m_showEffectsPanel);
 
     // ROTATION
@@ -710,6 +720,9 @@ void UIManager::renderEffectsPanel(App& app) {
 //==============================================================================
 
 void UIManager::renderGeneratorsPanel(App& app) {
+    // Position: Right side, below Effects
+    ImGui::SetNextWindowPos(ImVec2(910, 390), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(360, 380), ImGuiCond_FirstUseEver);
     ImGui::Begin("Generators", &m_showGeneratorsPanel);
 
     // Shared parameters
@@ -1140,6 +1153,9 @@ void UIManager::generateHarmonicsPattern(App& app) {
 }
 
 void UIManager::renderHarmonicsEditor(App& app) {
+    // Position: Floating, center-left area
+    ImGui::SetNextWindowPos(ImVec2(50, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
     ImGui::Begin("Harmonics Editor", &m_showHarmonicsEditor);
 
     ImGui::Text("Create custom Lissajous curves with harmonics and sweeps");
@@ -1295,6 +1311,9 @@ void UIManager::renderHarmonicsEditor(App& app) {
 //==============================================================================
 
 void UIManager::renderDrawingCanvas(App& app) {
+    // Position: Floating, center area
+    ImGui::SetNextWindowPos(ImVec2(350, 150), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(450, 550), ImGuiCond_FirstUseEver);
     ImGui::Begin("Drawing Canvas", &m_showDrawingCanvas);
 
     ImGui::Text("Click and drag to draw. Release to finish a stroke.");
@@ -1492,6 +1511,27 @@ void UIManager::generate3DShapePattern(App& app) {
                      {3,5},{3,7},{3,9},{3,11},{8,9},{10,11}};
             break;
         }
+        case Shape3DState::ShapeType::Dodecahedron: {
+            // Dodecahedron: 20 vertices, 30 edges
+            float phi = (1.0f + std::sqrt(5.0f)) / 2.0f;
+            float s = 0.4f;
+            float invPhi = 1.0f / phi;
+            vertices = {
+                // Cube vertices
+                {s, s, s}, {s, s, -s}, {s, -s, s}, {s, -s, -s},
+                {-s, s, s}, {-s, s, -s}, {-s, -s, s}, {-s, -s, -s},
+                // Rectangle vertices on XY plane
+                {0, s*phi, s*invPhi}, {0, s*phi, -s*invPhi}, {0, -s*phi, s*invPhi}, {0, -s*phi, -s*invPhi},
+                // Rectangle vertices on YZ plane
+                {s*invPhi, 0, s*phi}, {-s*invPhi, 0, s*phi}, {s*invPhi, 0, -s*phi}, {-s*invPhi, 0, -s*phi},
+                // Rectangle vertices on XZ plane
+                {s*phi, s*invPhi, 0}, {s*phi, -s*invPhi, 0}, {-s*phi, s*invPhi, 0}, {-s*phi, -s*invPhi, 0}
+            };
+            edges = {{0,8},{0,12},{0,16}, {1,9},{1,14},{1,16}, {2,10},{2,12},{2,17}, {3,11},{3,14},{3,17},
+                     {4,8},{4,13},{4,18}, {5,9},{5,15},{5,18}, {6,10},{6,13},{6,19}, {7,11},{7,15},{7,19},
+                     {8,9},{10,11},{12,13},{14,15},{16,17},{18,19}};
+            break;
+        }
         case Shape3DState::ShapeType::Sphere: {
             int res = m_shape3D.resolution;
             int latDiv = static_cast<int>(std::sqrt(res / 2.0f));
@@ -1562,6 +1602,32 @@ void UIManager::generate3DShapePattern(App& app) {
             for (int i = 0; i < res; ++i) edges.push_back({i, tipIdx});
             break;
         }
+        case Shape3DState::ShapeType::Pyramid: {
+            // Square-based pyramid
+            float s = 0.5f, h = 0.8f;
+            vertices = {
+                {-s, -h, -s}, {s, -h, -s}, {s, -h, s}, {-s, -h, s},  // Base
+                {0, h, 0}  // Apex
+            };
+            edges = {{0,1},{1,2},{2,3},{3,0}, {0,4},{1,4},{2,4},{3,4}};
+            break;
+        }
+        case Shape3DState::ShapeType::Prism: {
+            // N-sided prism
+            int sides = m_shape3D.prismSides;
+            float h = 0.7f, r = 0.5f;
+            for (int i = 0; i < sides; ++i) {
+                float theta = TWO_PI * i / sides;
+                float x = r * std::cos(theta), z = r * std::sin(theta);
+                vertices.push_back({x, -h, z});  // Bottom
+                vertices.push_back({x, h, z});   // Top
+                int base = i * 2;
+                edges.push_back({base, base + 1});  // Vertical edge
+                edges.push_back({base, ((i + 1) % sides) * 2});  // Bottom edge
+                edges.push_back({base + 1, ((i + 1) % sides) * 2 + 1});  // Top edge
+            }
+            break;
+        }
         case Shape3DState::ShapeType::Spiral3D: {
             int res = m_shape3D.resolution;
             float turns = 5.0f;
@@ -1574,6 +1640,37 @@ void UIManager::generate3DShapePattern(App& app) {
                 float z = r * std::sin(theta);
                 vertices.push_back({x, y, z});
                 if (i > 0) edges.push_back({i - 1, i});
+            }
+            break;
+        }
+        case Shape3DState::ShapeType::Helix: {
+            // Double helix (DNA-like)
+            int res = m_shape3D.resolution;
+            float turns = m_shape3D.helixTurns;
+            float r = m_shape3D.helixRadius;
+            float h = 0.8f;
+            for (int i = 0; i < res; ++i) {
+                float t = static_cast<float>(i) / res;
+                float theta = turns * TWO_PI * t;
+                // First strand
+                float x1 = r * std::cos(theta);
+                float z1 = r * std::sin(theta);
+                float y = -h + 2.0f * h * t;
+                vertices.push_back({x1, y, z1});
+                // Second strand (offset by PI)
+                float x2 = r * std::cos(theta + PI);
+                float z2 = r * std::sin(theta + PI);
+                vertices.push_back({x2, y, z2});
+
+                int base = i * 2;
+                if (i > 0) {
+                    edges.push_back({base - 2, base});      // Connect strand 1
+                    edges.push_back({base - 1, base + 1});  // Connect strand 2
+                }
+                // Connect the two strands at intervals
+                if (i % (res / 10) == 0) {
+                    edges.push_back({base, base + 1});
+                }
             }
             break;
         }
@@ -1590,6 +1687,174 @@ void UIManager::generate3DShapePattern(App& app) {
                 edges.push_back({i, (i + 1) % res});
             }
             break;
+        }
+        case Shape3DState::ShapeType::MobiusStrip: {
+            int res = m_shape3D.resolution;
+            int uDiv = static_cast<int>(std::sqrt(res));
+            int vDiv = std::max(3, uDiv / 4);
+            float R = 0.6f;  // Major radius
+            float w = 0.3f;  // Half-width of strip
+
+            for (int i = 0; i <= uDiv; ++i) {
+                float u = TWO_PI * i / uDiv;
+                for (int j = 0; j <= vDiv; ++j) {
+                    float v = -w + 2.0f * w * j / vDiv;
+                    // Mobius strip parametric equations
+                    float x = (R + v * std::cos(u / 2.0f)) * std::cos(u);
+                    float y = (R + v * std::cos(u / 2.0f)) * std::sin(u);
+                    float z = v * std::sin(u / 2.0f);
+                    vertices.push_back({x, y, z});
+
+                    int idx = i * (vDiv + 1) + j;
+                    if (j < vDiv) edges.push_back({idx, idx + 1});
+                    if (i < uDiv) edges.push_back({idx, idx + vDiv + 1});
+                }
+            }
+            break;
+        }
+        case Shape3DState::ShapeType::KleinBottle: {
+            int res = m_shape3D.resolution;
+            int uDiv = static_cast<int>(std::sqrt(res));
+            int vDiv = uDiv;
+
+            for (int i = 0; i < uDiv; ++i) {
+                float u = TWO_PI * i / uDiv;
+                for (int j = 0; j < vDiv; ++j) {
+                    float v = TWO_PI * j / vDiv;
+                    // Klein bottle parametric equations (figure-8 immersion)
+                    float r = 0.3f;
+                    float x = (r + std::cos(u / 2.0f) * std::sin(v) - std::sin(u / 2.0f) * std::sin(2.0f * v)) * std::cos(u);
+                    float y = (r + std::cos(u / 2.0f) * std::sin(v) - std::sin(u / 2.0f) * std::sin(2.0f * v)) * std::sin(u);
+                    float z = std::sin(u / 2.0f) * std::sin(v) + std::cos(u / 2.0f) * std::sin(2.0f * v);
+                    vertices.push_back({x * 0.7f, y * 0.7f, z * 0.7f});
+
+                    int idx = i * vDiv + j;
+                    int nextI = ((i + 1) % uDiv) * vDiv + j;
+                    int nextJ = i * vDiv + ((j + 1) % vDiv);
+                    edges.push_back({idx, nextI});
+                    edges.push_back({idx, nextJ});
+                }
+            }
+            break;
+        }
+        case Shape3DState::ShapeType::Spring: {
+            // Coil spring (3D helix with circular cross-section)
+            int res = m_shape3D.resolution;
+            int coils = 6;
+            int crossSectionPts = 8;
+            float springRadius = 0.5f;
+            float wireRadius = 0.1f;
+            float length = 1.4f;
+
+            for (int i = 0; i < res; ++i) {
+                float t = static_cast<float>(i) / res;
+                float theta = coils * TWO_PI * t;
+                // Center of coil at this point
+                float cx = springRadius * std::cos(theta);
+                float cy = -length / 2.0f + length * t;
+                float cz = springRadius * std::sin(theta);
+
+                // Normal vectors for cross-section
+                float nx = -std::sin(theta);
+                float nz = std::cos(theta);
+
+                for (int j = 0; j < crossSectionPts; ++j) {
+                    float phi = TWO_PI * j / crossSectionPts;
+                    float dx = wireRadius * std::cos(phi);
+                    float dy = wireRadius * std::sin(phi);
+
+                    float x = cx + dx * nx;
+                    float y = cy + dy;
+                    float z = cz + dx * nz;
+                    vertices.push_back({x, y, z});
+
+                    int idx = i * crossSectionPts + j;
+                    int nextJ = i * crossSectionPts + ((j + 1) % crossSectionPts);
+                    edges.push_back({idx, nextJ});  // Around cross-section
+                    if (i > 0) {
+                        int prevIdx = (i - 1) * crossSectionPts + j;
+                        edges.push_back({prevIdx, idx});  // Along coil
+                    }
+                }
+            }
+            break;
+        }
+        case Shape3DState::ShapeType::Star3D: {
+            // 3D star (stellated shape)
+            int points = m_shape3D.starPoints;
+            float outerR = 0.7f;
+            float innerR = m_shape3D.starInnerRadius;
+            float depth = 0.3f;
+
+            // Create front and back star shapes
+            int vertPerFace = points * 2;
+            for (int face = 0; face < 2; ++face) {
+                float z = (face == 0) ? depth : -depth;
+                for (int i = 0; i < points * 2; ++i) {
+                    float theta = PI * i / points - PI / 2.0f;
+                    float r = (i % 2 == 0) ? outerR : innerR;
+                    float x = r * std::cos(theta);
+                    float y = r * std::sin(theta);
+                    vertices.push_back({x, y, z});
+
+                    // Connect around star
+                    int idx = face * vertPerFace + i;
+                    int nextIdx = face * vertPerFace + ((i + 1) % (points * 2));
+                    edges.push_back({idx, nextIdx});
+                }
+            }
+            // Connect front to back
+            for (int i = 0; i < points * 2; ++i) {
+                edges.push_back({i, vertPerFace + i});
+            }
+            break;
+        }
+        case Shape3DState::ShapeType::Text3D: {
+            // Generate 3D text using stroke font
+            std::vector<float> textX, textY;
+            std::vector<size_t> textStrokeStarts;
+            Text3DGenerator::generateText3D(
+                m_shape3D.textBuffer,
+                0.5f,  // Character height
+                m_shape3D.textDepth,
+                m_shape3D.textConnectFaces,
+                textX, textY, textStrokeStarts
+            );
+
+            // Apply 3D rotation to the text
+            for (size_t i = 0; i < textX.size(); ++i) {
+                Vec3 v(textX[i], textY[i], 0.0f);
+                v = rotateX(v, rx);
+                v = rotateY(v, ry);
+                v = rotateZ(v, rz);
+                float projX_val, projY_val;
+                project(v, m_shape3D.perspective, m_shape3D.scale, projX_val, projY_val);
+                textX[i] = projX_val;
+                textY[i] = projY_val;
+            }
+
+            // Generate pattern with proper stroke handling
+            pattern.x.clear();
+            pattern.y.clear();
+            int pointsPerSegment = std::max(2, m_shape3D.resolution / static_cast<int>(std::max(size_t(1), textX.size())));
+
+            for (size_t strokeIdx = 0; strokeIdx < textStrokeStarts.size(); ++strokeIdx) {
+                size_t start = textStrokeStarts[strokeIdx];
+                size_t end = (strokeIdx + 1 < textStrokeStarts.size()) ? textStrokeStarts[strokeIdx + 1] : textX.size();
+
+                for (size_t i = start; i + 1 < end; ++i) {
+                    float x1 = textX[i], y1 = textY[i];
+                    float x2 = textX[i + 1], y2 = textY[i + 1];
+                    for (int p = 0; p < pointsPerSegment; ++p) {
+                        float t = static_cast<float>(p) / (pointsPerSegment - 1);
+                        pattern.x.push_back(x1 * (1 - t) + x2 * t);
+                        pattern.y.push_back(y1 * (1 - t) + y2 * t);
+                    }
+                }
+            }
+
+            app.getAudioEngine().setPattern(pattern);
+            return;  // Early return since we handle pattern directly
         }
     }
 
@@ -1622,13 +1887,22 @@ void UIManager::generate3DShapePattern(App& app) {
 }
 
 void UIManager::render3DShapeGenerator(App& app) {
+    // Position: Floating, upper center
+    ImGui::SetNextWindowPos(ImVec2(400, 100), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 550), ImGuiCond_FirstUseEver);
     ImGui::Begin("3D Shape Generator", &m_show3DShapeGenerator);
 
     ImGui::Text("Project 3D wireframes to 2D XY");
     ImGui::Separator();
 
-    // Shape selection
-    const char* shapes[] = {"Cube", "Tetrahedron", "Octahedron", "Icosahedron", "Sphere", "Torus", "Cylinder", "Cone", "3D Spiral", "Trefoil Knot"};
+    // Shape selection - expanded list
+    const char* shapes[] = {
+        "Cube", "Tetrahedron", "Octahedron", "Icosahedron", "Dodecahedron",
+        "Sphere", "Torus", "Cylinder", "Cone", "Pyramid", "Prism",
+        "3D Spiral", "Double Helix", "Trefoil Knot",
+        "Mobius Strip", "Klein Bottle", "Spring", "3D Star",
+        "3D Text"
+    };
     int shapeIdx = static_cast<int>(m_shape3D.shapeType);
     if (ImGui::Combo("Shape", &shapeIdx, shapes, IM_ARRAYSIZE(shapes))) {
         m_shape3D.shapeType = static_cast<Shape3DState::ShapeType>(shapeIdx);
@@ -1673,6 +1947,43 @@ void UIManager::render3DShapeGenerator(App& app) {
         rotChanged |= ImGui::SliderFloat("Q (windings)", &m_shape3D.knotQ, 1.0f, 7.0f);
     }
 
+    if (m_shape3D.shapeType == Shape3DState::ShapeType::Helix) {
+        ImGui::Separator();
+        ImGui::Text("Helix Parameters");
+        rotChanged |= ImGui::SliderFloat("Turns", &m_shape3D.helixTurns, 1.0f, 10.0f);
+        rotChanged |= ImGui::SliderFloat("Radius", &m_shape3D.helixRadius, 0.2f, 0.8f);
+    }
+
+    if (m_shape3D.shapeType == Shape3DState::ShapeType::Prism) {
+        ImGui::Separator();
+        ImGui::Text("Prism Parameters");
+        rotChanged |= ImGui::SliderInt("Sides", &m_shape3D.prismSides, 3, 12);
+    }
+
+    if (m_shape3D.shapeType == Shape3DState::ShapeType::Star3D) {
+        ImGui::Separator();
+        ImGui::Text("Star Parameters");
+        rotChanged |= ImGui::SliderInt("Points", &m_shape3D.starPoints, 3, 12);
+        rotChanged |= ImGui::SliderFloat("Inner Radius", &m_shape3D.starInnerRadius, 0.1f, 0.6f);
+    }
+
+    if (m_shape3D.shapeType == Shape3DState::ShapeType::Text3D) {
+        ImGui::Separator();
+        ImGui::Text("3D Text");
+        ImGui::PushItemWidth(-1);
+        if (ImGui::InputText("##TextInput", m_shape3D.textBuffer, sizeof(m_shape3D.textBuffer),
+                             ImGuiInputTextFlags_EnterReturnsTrue)) {
+            generate3DShapePattern(app);
+        }
+        ImGui::PopItemWidth();
+        ImGui::TextDisabled("(Press Enter to apply)");
+
+        rotChanged |= ImGui::SliderFloat("Depth", &m_shape3D.textDepth, 0.0f, 1.0f);
+        rotChanged |= ImGui::Checkbox("Connect Faces", &m_shape3D.textConnectFaces);
+
+        ImGui::TextDisabled("A-Z, 0-9, punctuation supported");
+    }
+
     ImGui::Separator();
 
     if (rotChanged && !m_shape3D.animate) {
@@ -1691,6 +2002,9 @@ void UIManager::render3DShapeGenerator(App& app) {
 //==============================================================================
 
 void UIManager::renderSoundPad(App& app) {
+    // Position: Floating, left side below Controls
+    ImGui::SetNextWindowPos(ImVec2(10, 490), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(280, 300), ImGuiCond_FirstUseEver);
     ImGui::Begin("Sound Pad", &m_showSoundPad);
     ImGui::Text("16-Step XY Sequencer");
     ImGui::Separator();
@@ -1753,6 +2067,9 @@ void UIManager::renderSoundPad(App& app) {
 
 void UIManager::renderDisplaySettings(App& app) {
     (void)app;
+    // Position: Floating, right of oscilloscope
+    ImGui::SetNextWindowPos(ImVec2(600, 150), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_FirstUseEver);
     ImGui::Begin("Display Settings", &m_showDisplaySettings);
 
     //==========================================================================
