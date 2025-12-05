@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <set>
+#include <cfloat>
 
 namespace oscilloplot {
 
@@ -233,6 +235,9 @@ void UIManager::renderControlPanel(App& app) {
 //==============================================================================
 
 void UIManager::renderOscilloscopeDisplay(App& app) {
+    // Set minimum window size to ensure display is always visible
+    ImGui::SetNextWindowSizeConstraints(ImVec2(400, 400), ImVec2(FLT_MAX, FLT_MAX));
+
     ImGui::Begin("Oscilloscope");
 
     // Mini toolbar for display settings (Tektronix 465B style controls)
@@ -263,9 +268,14 @@ void UIManager::renderOscilloscopeDisplay(App& app) {
 void UIManager::renderPhosphorScope(App& app) {
     ImVec2 plotSize = ImGui::GetContentRegionAvail();
 
+    // Ensure minimum valid plot size
+    if (plotSize.x < 100.0f) plotSize.x = 100.0f;
+    if (plotSize.y < 100.0f) plotSize.y = 100.0f;
+
     // Calculate frame timing for decay
     ++m_frameCount;
     float currentTime = static_cast<float>(m_frameCount) / 60.0f * 1000.0f; // Approximate ms
+    (void)currentTime; // Suppress unused variable warning
 
     //==========================================================================
     // CRT-style dark background with slight green tint (like real phosphor glow)
@@ -1335,10 +1345,11 @@ void UIManager::renderDrawingCanvas(App& app) {
     ImGuiIO& io = ImGui::GetIO();
 
     if (isHovered && ImGui::IsMouseClicked(0)) {
-        // Start new drawing
-        m_drawing.pointsX.clear();
-        m_drawing.pointsY.clear();
+        // Start a new stroke (but DON'T clear existing drawing!)
         m_drawing.isDrawing = true;
+        m_drawing.newStrokeStarted = true;
+        // Record where this stroke begins
+        m_drawing.strokeStarts.push_back(m_drawing.pointsX.size());
     }
 
     if (m_drawing.isDrawing && isActive) {
@@ -1349,8 +1360,15 @@ void UIManager::renderDrawingCanvas(App& app) {
         mouseX = std::clamp(mouseX, -1.0f, 1.0f);
         mouseY = std::clamp(mouseY, -1.0f, 1.0f);
 
-        // Apply smoothing
-        if (!m_drawing.pointsX.empty()) {
+        if (m_drawing.newStrokeStarted) {
+            // First point of a new stroke - add without smoothing or distance check
+            m_drawing.pointsX.push_back(mouseX);
+            m_drawing.pointsY.push_back(mouseY);
+            m_drawing.lastX = mouseX;
+            m_drawing.lastY = mouseY;
+            m_drawing.newStrokeStarted = false;
+        } else if (!m_drawing.pointsX.empty()) {
+            // Apply smoothing for subsequent points in the stroke
             mouseX = m_drawing.lastX * m_drawing.smoothing + mouseX * (1.0f - m_drawing.smoothing);
             mouseY = m_drawing.lastY * m_drawing.smoothing + mouseY * (1.0f - m_drawing.smoothing);
 
@@ -1361,22 +1379,26 @@ void UIManager::renderDrawingCanvas(App& app) {
                 m_drawing.pointsX.push_back(mouseX);
                 m_drawing.pointsY.push_back(mouseY);
             }
-        } else {
-            m_drawing.pointsX.push_back(mouseX);
-            m_drawing.pointsY.push_back(mouseY);
+            m_drawing.lastX = mouseX;
+            m_drawing.lastY = mouseY;
         }
-
-        m_drawing.lastX = mouseX;
-        m_drawing.lastY = mouseY;
     }
 
     if (m_drawing.isDrawing && ImGui::IsMouseReleased(0)) {
         m_drawing.isDrawing = false;
     }
 
-    // Draw the path
+    // Draw the path - skip lines between different strokes
     if (m_drawing.pointsX.size() >= 2) {
+        // Build a set of stroke start indices for fast lookup
+        std::set<size_t> strokeStartSet(m_drawing.strokeStarts.begin(), m_drawing.strokeStarts.end());
+
         for (size_t i = 0; i < m_drawing.pointsX.size() - 1; ++i) {
+            // Don't draw a line if the next point is the start of a new stroke
+            if (strokeStartSet.count(i + 1) > 0) {
+                continue;
+            }
+
             // Convert normalized to screen coordinates
             float x1 = canvasPos.x + (m_drawing.pointsX[i] + 1.0f) * 0.5f * canvasSize.x;
             float y1 = canvasPos.y + (-m_drawing.pointsY[i] + 1.0f) * 0.5f * canvasSize.y;
@@ -1398,11 +1420,12 @@ void UIManager::renderDrawingCanvas(App& app) {
     }
 
     ImGui::Separator();
-    ImGui::Text("Points: %zu", m_drawing.pointsX.size());
+    ImGui::Text("Points: %zu  Strokes: %zu", m_drawing.pointsX.size(), m_drawing.strokeStarts.size());
 
     if (ImGui::Button("Clear Canvas", ImVec2(-1, 0))) {
         m_drawing.pointsX.clear();
         m_drawing.pointsY.clear();
+        m_drawing.strokeStarts.clear();
     }
 
     if (ImGui::Button("Use as Pattern", ImVec2(-1, 30))) {

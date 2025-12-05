@@ -120,7 +120,9 @@ struct HarmonicsState {
 struct DrawingState {
     std::vector<float> pointsX;
     std::vector<float> pointsY;
+    std::vector<size_t> strokeStarts;  // Indices where each stroke begins (for proper rendering)
     bool isDrawing = false;
+    bool newStrokeStarted = false;     // Flag to mark beginning of a new stroke
     float smoothing = 0.3f;
     float lastX = 0.0f;
     float lastY = 0.0f;
