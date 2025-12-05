@@ -92,6 +92,12 @@ void UIManager::shutdown() {
 }
 
 void UIManager::render(App& app) {
+    // Generate default rotating torus on first render
+    if (m_firstRender) {
+        generate3DShapePattern(app);
+        m_firstRender = false;
+    }
+
     renderMenuBar(app);
     renderControlPanel(app);
     renderOscilloscopeDisplay(app);
@@ -123,8 +129,8 @@ void UIManager::render(App& app) {
         ImPlot::ShowDemoWindow();
     }
 
-    // Animate 3D shape if enabled
-    if (m_shape3D.animate) {
+    // Animate 3D shape if enabled AND 3D shape is the active pattern source
+    if (m_shape3D.animate && m_3dShapeActive) {
         m_shape3D.rotationX += m_shape3D.rotationSpeedX;
         m_shape3D.rotationY += m_shape3D.rotationSpeedY;
         m_shape3D.rotationZ += m_shape3D.rotationSpeedZ;
@@ -730,7 +736,9 @@ void UIManager::renderGeneratorsPanel(App& app) {
     ImGui::SliderInt("Points", &numPoints, 100, 5000);
 
     // Helper lambda to update pattern and audio engine
+    // Also disables 3D shape animation so it doesn't overwrite user's selection
     auto setPattern = [&]() {
+        m_3dShapeActive = false;  // Stop 3D animation from overwriting
         app.getAudioEngine().setPattern(app.getPattern());
     };
 
@@ -1037,6 +1045,7 @@ void UIManager::renderGeneratorsPanel(App& app) {
 //==============================================================================
 
 void UIManager::generateHarmonicsPattern(App& app) {
+    m_3dShapeActive = false;  // Stop 3D animation from overwriting
     Pattern& pattern = app.getPattern();
     pattern.clear();
 
@@ -1407,6 +1416,7 @@ void UIManager::renderDrawingCanvas(App& app) {
         m_drawing.isDrawing = false;
         // Auto-update pattern when stroke is finished
         if (m_drawing.pointsX.size() >= 2) {
+            m_3dShapeActive = false;  // Stop 3D animation from overwriting
             Pattern& pattern = app.getPattern();
             pattern.clear();
             pattern.x = m_drawing.pointsX;
@@ -1457,6 +1467,7 @@ void UIManager::renderDrawingCanvas(App& app) {
 
     if (ImGui::Button("Use as Pattern", ImVec2(-1, 30))) {
         if (m_drawing.pointsX.size() >= 2) {
+            m_3dShapeActive = false;  // Stop 3D animation from overwriting
             Pattern& pattern = app.getPattern();
             pattern.clear();
             pattern.x = m_drawing.pointsX;
@@ -1995,10 +2006,12 @@ void UIManager::render3DShapeGenerator(App& app) {
     ImGui::Separator();
 
     if (rotChanged && !m_shape3D.animate) {
+        m_3dShapeActive = true;  // Re-enable 3D shape as active source
         generate3DShapePattern(app);
     }
 
     if (ImGui::Button("Generate Shape", ImVec2(-1, 40))) {
+        m_3dShapeActive = true;  // Re-enable 3D shape as active source
         generate3DShapePattern(app);
     }
 

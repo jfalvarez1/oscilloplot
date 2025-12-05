@@ -155,17 +155,17 @@ struct Shape3DState {
         Text3D
     };
 
-    ShapeType shapeType = ShapeType::Cube;
+    ShapeType shapeType = ShapeType::Torus;  // Default to rotating donut
     float rotationX = 0.0f;         // Current X rotation (degrees)
     float rotationY = 0.0f;         // Current Y rotation (degrees)
     float rotationZ = 0.0f;         // Current Z rotation (degrees)
-    float rotationSpeedX = 0.0f;    // Animation speed (deg/frame)
+    float rotationSpeedX = 0.5f;    // Animation speed (deg/frame)
     float rotationSpeedY = 1.0f;
     float rotationSpeedZ = 0.0f;
     float scale = 0.8f;
     float perspective = 2.0f;       // Distance for perspective (0 = orthographic)
     int resolution = 500;           // Points for curved shapes
-    bool animate = false;
+    bool animate = true;            // Start with animation enabled
 
     // Torus specific
     float torusMajorRadius = 0.7f;
@@ -260,6 +260,10 @@ private:
 
     // 3D shape generator state
     Shape3DState m_shape3D;
+    bool m_3dShapeActive = true;  // Track if 3D shape is the active pattern source
+
+    // First render flag for initial pattern generation
+    bool m_firstRender = true;
 };
 
 } // namespace oscilloplot
