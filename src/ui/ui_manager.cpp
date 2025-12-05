@@ -799,45 +799,41 @@ void UIManager::renderGeneratorsPanel(App& app) {
         static int starSpikes = 5;
         static float starInner = 0.5f;
         static int flowerPetals = 6;
-        static float petalDepth = 0.3f;
+        static float petalDepth = 0.5f;
         static int roseK = 4;
 
-        if (ImGui::Button("Star (5-pt)", ImVec2(80, 0))) {
-            generators::generateStar(app.getPattern(), numPoints, 5, 0.5f);
-            setPattern();
-        }
+        // Star generator
+        ImGui::Text("Star:");
+        ImGui::SetNextItemWidth(100);
+        ImGui::SliderInt("Spikes##star", &starSpikes, 3, 20);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputInt("Spikes", &starSpikes);
+        ImGui::SetNextItemWidth(100);
+        ImGui::SliderFloat("Inner Radius##star", &starInner, 0.1f, 0.9f, "%.2f");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("Inner##star", &starInner, 0.1f, 0.9f, "%.2f");
-        ImGui::SameLine();
-        if (ImGui::Button("Custom Star", ImVec2(-1, 0))) {
+        if (ImGui::Button("Generate Star", ImVec2(-1, 0))) {
             generators::generateStar(app.getPattern(), numPoints, starSpikes, starInner);
             setPattern();
         }
 
-        if (ImGui::Button("Flower (6-petal)", ImVec2(100, 0))) {
-            generators::generateFlower(app.getPattern(), numPoints, 6, 0.3f);
-            setPattern();
-        }
+        // Flower generator
+        ImGui::Text("Flower:");
+        ImGui::SetNextItemWidth(100);
+        ImGui::SliderInt("Petals##flower", &flowerPetals, 2, 20);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputInt("Petals", &flowerPetals);
+        ImGui::SetNextItemWidth(100);
+        ImGui::SliderFloat("Petal Depth##flower", &petalDepth, 0.1f, 0.9f, "%.2f");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("Depth##fl", &petalDepth, 0.1f, 0.5f, "%.2f");
-        ImGui::SameLine();
-        if (ImGui::Button("Custom Flower", ImVec2(-1, 0))) {
+        if (ImGui::Button("Generate Flower", ImVec2(-1, 0))) {
             generators::generateFlower(app.getPattern(), numPoints, flowerPetals, petalDepth);
             setPattern();
         }
 
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputInt("k##rose", &roseK);
+        // Rose curve
+        ImGui::Text("Rose Curve (k petals):");
+        ImGui::SetNextItemWidth(100);
+        ImGui::SliderInt("k (petals)##rose", &roseK, 1, 12);
         ImGui::SameLine();
-        if (ImGui::Button("Rose Curve", ImVec2(-1, 0))) {
+        if (ImGui::Button("Generate Rose", ImVec2(-1, 0))) {
             generators::generateRoseCurve(app.getPattern(), numPoints, roseK);
             setPattern();
         }
@@ -896,13 +892,14 @@ void UIManager::renderGeneratorsPanel(App& app) {
             setPattern();
         }
 
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputInt("p##torus", &torusP);
+        ImGui::Text("Torus Knot (p:q ratio):");
+        ImGui::SetNextItemWidth(80);
+        ImGui::SliderInt("p##torus", &torusP, 1, 10);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputInt("q##torus", &torusQ);
+        ImGui::SetNextItemWidth(80);
+        ImGui::SliderInt("q##torus", &torusQ, 1, 10);
         ImGui::SameLine();
-        if (ImGui::Button("Torus Knot", ImVec2(-1, 0))) {
+        if (ImGui::Button("Generate Torus Knot", ImVec2(-1, 0))) {
             generators::generateTorusKnot(app.getPattern(), numPoints, torusP, torusQ);
             setPattern();
         }
@@ -916,7 +913,7 @@ void UIManager::renderGeneratorsPanel(App& app) {
         static float epiR = 5.0f, epiR2 = 2.0f, epiD = 2.0f;
 
         if (ImGui::Button("Butterfly", ImVec2(80, 0))) {
-            generators::generateButterfly(app.getPattern(), 1000);  // Needs more points
+            generators::generateButterfly(app.getPattern(), 2000);  // Needs more points
             setPattern();
         }
         ImGui::SameLine();
@@ -931,24 +928,24 @@ void UIManager::renderGeneratorsPanel(App& app) {
         }
 
         ImGui::Text("Hypotrochoid (R, r, d):");
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("R##hypo", &hypoR, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("r##hypo", &hypoR2, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("d##hypo", &hypoD, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("R##hypo", &hypoR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("r##hypo", &hypoR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("d##hypo", &hypoD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
         if (ImGui::Button("Generate##hypo", ImVec2(-1, 0))) {
             generators::generateHypotrochoid(app.getPattern(), numPoints, hypoR, hypoR2, hypoD);
             setPattern();
         }
 
         ImGui::Text("Epitrochoid (R, r, d):");
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("R##epi", &epiR, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("r##epi", &epiR2, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
-        ImGui::SetNextItemWidth(50);
-        ImGui::InputFloat("d##epi", &epiD, 0.0f, 0.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("R##epi", &epiR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("r##epi", &epiR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::SliderFloat("d##epi", &epiD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
         if (ImGui::Button("Generate##epi", ImVec2(-1, 0))) {
             generators::generateEpitrochoid(app.getPattern(), numPoints, epiR, epiR2, epiD);
             setPattern();
@@ -1252,36 +1249,22 @@ void UIManager::renderHarmonicsEditor(App& app) {
     ImGui::Separator();
 
     // Presets
-    ImGui::Text("Presets:");
-    if (ImGui::Button("Classic 3:2", ImVec2(85, 0))) {
+    ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "Presets (replaces current settings!):");
+    if (ImGui::Button("3:2 Lissajous", ImVec2(90, 0))) {
         m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
         m_harmonics.xTerms[0] = {1.0f, 3.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         m_harmonics.yTerms[0] = {1.0f, 2.0f, PI / 2.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("5:4", ImVec2(50, 0))) {
+    if (ImGui::Button("5:4 Lissajous", ImVec2(90, 0))) {
         m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
         m_harmonics.xTerms[0] = {1.0f, 5.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         m_harmonics.yTerms[0] = {1.0f, 4.0f, PI / 4.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Phase Sweep", ImVec2(90, 0))) {
-        m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
-        m_harmonics.xTerms[0] = {1.0f, 3.0f, 0.0f, true, true, true, 0.0f, TWO_PI, 30, false, 1.0f, 5.0f, 20};
-        m_harmonics.yTerms[0] = {1.0f, 2.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
-        changed = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Freq Sweep", ImVec2(85, 0))) {
-        m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
-        m_harmonics.xTerms[0] = {1.0f, 1.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, true, 1.0f, 8.0f, 40};
-        m_harmonics.yTerms[0] = {1.0f, 1.0f, PI / 2.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
-        changed = true;
-    }
-
-    if (ImGui::Button("Complex", ImVec2(70, 0))) {
+    if (ImGui::Button("Complex 3+3", ImVec2(85, 0))) {
         m_harmonics.numXTerms = 3; m_harmonics.numYTerms = 3;
         m_harmonics.xTerms[0] = {1.0f, 1.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         m_harmonics.xTerms[1] = {0.3f, 3.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
@@ -1291,6 +1274,23 @@ void UIManager::renderHarmonicsEditor(App& app) {
         m_harmonics.yTerms[2] = {0.1f, 6.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
         changed = true;
     }
+
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Sweep Demos:");
+    if (ImGui::Button("Phase Sweep Demo", ImVec2(120, 0))) {
+        m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
+        m_harmonics.xTerms[0] = {1.0f, 3.0f, 0.0f, true, true, true, 0.0f, TWO_PI, 30, false, 1.0f, 5.0f, 20};
+        m_harmonics.yTerms[0] = {1.0f, 2.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Freq Sweep Demo", ImVec2(120, 0))) {
+        m_harmonics.numXTerms = 1; m_harmonics.numYTerms = 1;
+        m_harmonics.xTerms[0] = {1.0f, 1.0f, 0.0f, true, true, false, 0.0f, TWO_PI, 20, true, 1.0f, 8.0f, 40};
+        m_harmonics.yTerms[0] = {1.0f, 1.0f, PI / 2.0f, true, true, false, 0.0f, TWO_PI, 20, false, 1.0f, 5.0f, 20};
+        changed = true;
+    }
+
+    ImGui::TextDisabled("Tip: Use checkboxes above to add sweeps to your own terms");
 
     ImGui::Separator();
 
@@ -1405,6 +1405,14 @@ void UIManager::renderDrawingCanvas(App& app) {
 
     if (m_drawing.isDrawing && ImGui::IsMouseReleased(0)) {
         m_drawing.isDrawing = false;
+        // Auto-update pattern when stroke is finished
+        if (m_drawing.pointsX.size() >= 2) {
+            Pattern& pattern = app.getPattern();
+            pattern.clear();
+            pattern.x = m_drawing.pointsX;
+            pattern.y = m_drawing.pointsY;
+            app.getAudioEngine().setPattern(pattern);
+        }
     }
 
     // Draw the path - skip lines between different strokes

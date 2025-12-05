@@ -53,10 +53,11 @@ struct PhosphorSettings {
     //--------------------------------------------------------------------------
     // Phosphor Color - P31 default (Tektronix 465B)
     // P31: ZnS:Cu - yellowish-green, peak ~525nm
+    // RGB: 89, 255, 64
     //--------------------------------------------------------------------------
-    float colorR = 0.35f;               // P31 has slight yellow tint
-    float colorG = 1.0f;
-    float colorB = 0.25f;
+    float colorR = 89.0f / 255.0f;      // 0.349 - P31 has slight yellow tint
+    float colorG = 255.0f / 255.0f;     // 1.0
+    float colorB = 64.0f / 255.0f;      // 0.251
 
     //--------------------------------------------------------------------------
     // CRT Simulation

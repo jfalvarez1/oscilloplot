@@ -63,10 +63,28 @@ void generateLissajous(Pattern& pattern, int numPoints, int a, int b, float delt
 void generateStar(Pattern& pattern, int numPoints, int numSpikes, float innerRadius) {
     pattern.resize(numPoints);
 
+    // Clamp parameters
+    numSpikes = std::max(3, numSpikes);
+    innerRadius = std::max(0.1f, std::min(0.9f, innerRadius));
+
     for (int i = 0; i < numPoints; ++i) {
         float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
-        // Create smooth star using modulated radius
-        float r = 1.0f + (innerRadius - 1.0f) * 0.5f * (1.0f + std::sin(numSpikes * t));
+
+        // Calculate which segment we're in (0 to 2*numSpikes-1)
+        float segment = t * numSpikes / static_cast<float>(M_PI);
+        float segmentFrac = std::fmod(segment, 2.0f);
+
+        // Triangle wave: goes from innerRadius at 0.5 to 1.0 at 0 and 1.0
+        // Creates sharp star points
+        float r;
+        if (segmentFrac < 1.0f) {
+            // Going from outer (1.0) down to inner
+            r = 1.0f - (1.0f - innerRadius) * segmentFrac;
+        } else {
+            // Going from inner back to outer (1.0)
+            r = innerRadius + (1.0f - innerRadius) * (segmentFrac - 1.0f);
+        }
+
         pattern.x[i] = r * std::cos(t);
         pattern.y[i] = r * std::sin(t);
     }
@@ -75,9 +93,14 @@ void generateStar(Pattern& pattern, int numPoints, int numSpikes, float innerRad
 void generateFlower(Pattern& pattern, int numPoints, int numPetals, float petalDepth) {
     pattern.resize(numPoints);
 
+    // Clamp parameters
+    numPetals = std::max(2, numPetals);
+    petalDepth = std::max(0.1f, std::min(0.9f, petalDepth));
+
     for (int i = 0; i < numPoints; ++i) {
         float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
-        float r = 1.0f + petalDepth * std::cos(numPetals * t);
+        // Flower with numPetals petals - using absolute value of cos for proper petal shape
+        float r = (1.0f - petalDepth) + petalDepth * std::abs(std::cos(numPetals * t * 0.5f));
         pattern.x[i] = r * std::cos(t);
         pattern.y[i] = r * std::sin(t);
     }
@@ -86,9 +109,23 @@ void generateFlower(Pattern& pattern, int numPoints, int numPetals, float petalD
 void generateRoseCurve(Pattern& pattern, int numPoints, int k) {
     pattern.resize(numPoints);
 
+    // Clamp k to valid range
+    k = std::max(1, k);
+
+    // Rose curve: r = cos(n * theta)
+    // For n petals: use n directly in formula
+    // Odd n: n petals when theta goes 0 to PI
+    // Even n: 2n petals when theta goes 0 to 2*PI, OR n petals with n/2 formula
+    //
+    // We want k to always mean k petals, so:
+    // - Odd k: use k in formula, theta from 0 to PI
+    // - Even k: use k in formula, theta from 0 to PI (gives k petals, not 2k)
+
+    float maxTheta = static_cast<float>(M_PI);  // PI gives k petals for any k
+
     for (int i = 0; i < numPoints; ++i) {
-        float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
-        float r = std::cos(k * t);
+        float t = static_cast<float>(i) / numPoints * maxTheta;
+        float r = std::cos(static_cast<float>(k) * t);
         pattern.x[i] = r * std::cos(t);
         pattern.y[i] = r * std::sin(t);
     }
