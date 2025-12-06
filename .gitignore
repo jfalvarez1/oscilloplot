@@ -47,4 +47,18 @@ desktop.ini
 # external/imgui/
 # external/implot/
 # external/pocketfft/
+
+# Claude Code
 .claude/
+
+# Release artifacts
+*.zip
+release/
+nul
+
+# Debug logs
+*.log
+vectorizer_debug.log
+
+# ImGui config (user-specific)
+imgui.ini

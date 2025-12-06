@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <array>
+#include <string>
+#include "vectorizer/image_vectorizer.hpp"
 
 namespace oscilloplot {
 
@@ -216,6 +218,7 @@ private:
     void renderDrawingCanvas(App& app);
     void renderDisplaySettings(App& app);
     void render3DShapeGenerator(App& app);
+    void renderImageVectorizer(App& app);
 
     // Phosphor display rendering
     void renderPhosphorScope(App& app);
@@ -264,6 +267,13 @@ private:
 
     // First render flag for initial pattern generation
     bool m_firstRender = true;
+
+    // Image vectorizer state
+    bool m_showImageVectorizer = false;
+    ImageVectorizer m_vectorizer;
+    VectorizerParams m_vectorizerParams;
+    bool m_vectorizerImageLoaded = false;
+    std::string m_vectorizerImagePath;
 };
 
 } // namespace oscilloplot

@@ -89,6 +89,7 @@ set(APP_SOURCES
     src/data/pattern.cpp
     src/data/file_loader.cpp
     src/data/file_saver.cpp
+    src/vectorizer/image_vectorizer.cpp
 )
 
 # Header-only optimized utilities (for IDE indexing)
@@ -112,6 +113,17 @@ add_executable(${PROJECT_NAME}
 )
 
 #===============================================================================
+# Standalone Image Vectorizer Tool
+#===============================================================================
+
+add_executable(vectorizer_tool
+    src/tools/vectorizer_tool.cpp
+    src/vectorizer/image_vectorizer.cpp
+    ${IMGUI_SOURCES}
+    ${IMPLOT_SOURCES}
+)
+
+#===============================================================================
 # Include Directories
 #===============================================================================
 
@@ -121,6 +133,17 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${IMGUI_DIR}/backends
     ${IMPLOT_DIR}
     ${CMAKE_SOURCE_DIR}/external/pocketfft
+    ${CMAKE_SOURCE_DIR}/external/stb
+    ${CMAKE_SOURCE_DIR}/external/pfd
+)
+
+target_include_directories(vectorizer_tool PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${IMPLOT_DIR}
+    ${CMAKE_SOURCE_DIR}/external/stb
+    ${CMAKE_SOURCE_DIR}/external/pfd
 )
 
 #===============================================================================
@@ -134,6 +157,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     portaudio
     SndFile::sndfile
     glm::glm
+)
+
+target_link_libraries(vectorizer_tool PRIVATE
+    $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
+    $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
+    OpenGL::GL
 )
 
 #===============================================================================
@@ -167,6 +196,25 @@ if(MSVC)
     endif()
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+    )
+
+    # Vectorizer tool compile options
+    target_compile_options(vectorizer_tool PRIVATE
+        /W4 /MP /fp:fast /GS-
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:Release>:/Ob3>
+        $<$<CONFIG:Release>:/GL>
+    )
+    if(OSCILLOPLOT_ENABLE_SIMD)
+        target_compile_options(vectorizer_tool PRIVATE /arch:AVX2)
+    endif()
+    if(OSCILLOPLOT_ENABLE_LTO)
+        target_link_options(vectorizer_tool PRIVATE $<$<CONFIG:Release>:/LTCG>)
+    endif()
+    target_compile_definitions(vectorizer_tool PRIVATE
         _CRT_SECURE_NO_WARNINGS
         NOMINMAX
         WIN32_LEAN_AND_MEAN

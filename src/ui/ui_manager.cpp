@@ -7,7 +7,10 @@
 
 #include <imgui.h>
 #include <implot.h>
+#include <SDL_opengl.h>
+#include <portable-file-dialogs.h>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <algorithm>
 #include <set>
@@ -120,6 +123,9 @@ void UIManager::render(App& app) {
     if (m_show3DShapeGenerator) {
         render3DShapeGenerator(app);
     }
+    if (m_showImageVectorizer) {
+        renderImageVectorizer(app);
+    }
     if (m_showDisplaySettings) {
         renderDisplaySettings(app);
     }
@@ -168,6 +174,7 @@ void UIManager::renderMenuBar(App& app) {
             ImGui::MenuItem("Harmonics Editor", nullptr, &m_showHarmonicsEditor);
             ImGui::MenuItem("Drawing Canvas", nullptr, &m_showDrawingCanvas);
             ImGui::MenuItem("3D Shape Generator", nullptr, &m_show3DShapeGenerator);
+            ImGui::MenuItem("Image Vectorizer", nullptr, &m_showImageVectorizer);
             ImGui::Separator();
             ImGui::MenuItem("Display Settings", nullptr, &m_showDisplaySettings);
             ImGui::Separator();
@@ -2199,6 +2206,416 @@ void UIManager::renderDisplaySettings(App& app) {
     ImGui::Separator();
     ImGui::SliderInt("Trail Samples", &m_phosphor.trailSamples, 1024, 16384);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("More samples = longer visible trail");
+
+    ImGui::End();
+}
+
+//==============================================================================
+// Image Vectorizer Panel
+//==============================================================================
+void UIManager::renderImageVectorizer(App& app) {
+    ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(850, 650), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Image Vectorizer", &m_showImageVectorizer);
+
+    // Local state for file path input
+    static char pathBuffer[512] = "";
+    static std::string statusMessage = "Ready";
+    static std::vector<float> previewX, previewY;
+
+    // Left panel - Controls
+    ImGui::BeginChild("VectorizerControls", ImVec2(380, 0), true);
+
+    ImGui::Text("IMAGE VECTORIZER");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    //==========================================================================
+    // FILE LOADING
+    //==========================================================================
+    ImGui::Text("Load Image");
+    ImGui::Separator();
+
+    if (ImGui::Button("Browse...", ImVec2(100, 0))) {
+        auto selection = pfd::open_file(
+            "Select Image",
+            "",
+            { "Image Files", "*.png *.jpg *.jpeg *.bmp *.gif *.tga",
+              "All Files", "*" }
+        ).result();
+
+        if (!selection.empty()) {
+            strncpy(pathBuffer, selection[0].c_str(), sizeof(pathBuffer) - 1);
+            pathBuffer[sizeof(pathBuffer) - 1] = '\0';
+        }
+    }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputText("##VecPath", pathBuffer, sizeof(pathBuffer));
+
+    bool canLoad = strlen(pathBuffer) > 0;
+    if (!canLoad) ImGui::BeginDisabled();
+    if (ImGui::Button("Load Image", ImVec2(-1, 30))) {
+        if (m_vectorizer.loadImage(pathBuffer)) {
+            m_vectorizerImagePath = pathBuffer;
+            m_vectorizerImageLoaded = true;
+            statusMessage = "Loaded: " + std::to_string(m_vectorizer.getWidth()) +
+                           "x" + std::to_string(m_vectorizer.getHeight());
+        } else {
+            statusMessage = "Failed to load image!";
+            m_vectorizerImageLoaded = false;
+        }
+    }
+    if (!canLoad) ImGui::EndDisabled();
+
+    if (m_vectorizerImageLoaded) {
+        ImGui::Text("Size: %dx%d", m_vectorizer.getWidth(), m_vectorizer.getHeight());
+    }
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    //==========================================================================
+    // IMAGE TYPE GUIDE
+    //==========================================================================
+    if (ImGui::CollapsingHeader("What type of image?", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.5f, 1.0f));
+        ImGui::TextWrapped("Choose the mode that best matches your image:");
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+
+        // Photo modes
+        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "PHOTOS:");
+        if (ImGui::Button("General Photo", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PhotoGeneral;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Landscapes, objects, general photography\nUses Canny edge detection");
+
+        if (ImGui::Button("Portrait / Face", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PhotoPortrait;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("People, faces, portraits\nBilateral filter smooths skin while preserving features");
+
+        if (ImGui::Button("High Detail", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PhotoHighDetail;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Architecture, textures, detailed scenes\nCaptures maximum edge detail");
+
+        ImGui::Spacing();
+
+        // People detection modes
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "PEOPLE (Smart Detection):");
+        if (ImGui::Button("Face Focus", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PeopleFace;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Detect face and emphasize facial features\nSkin detection + face region estimation");
+
+        if (ImGui::Button("Headshot / Bust", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PeopleHeadshot;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Head and shoulders portrait\nFace + upper body with smooth transitions");
+
+        if (ImGui::Button("Full Body", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PeopleFullBody;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Complete figure with face detail\nBody silhouette + facial feature emphasis");
+
+        if (ImGui::Button("Artistic Portrait", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PeopleArtistic;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Stylized line portrait\nDoG edge detection + artistic simplification");
+
+        ImGui::Spacing();
+
+        // Artwork modes
+        ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.8f, 1.0f), "ARTWORK:");
+        if (ImGui::Button("Cartoon / Anime", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::Cartoon;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cartoons, anime, cel-shaded art\nColor quantization + edge tracing");
+
+        if (ImGui::Button("Line Art / Sketch", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::LineArt;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pencil drawings, ink sketches, line work\nDifference of Gaussians for line detection");
+
+        if (ImGui::Button("Pixel Art", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::PixelArt;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pixel art, sprites, retro graphics\nPreserves sharp pixel edges");
+
+        ImGui::Spacing();
+
+        // Graphics modes
+        ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "GRAPHICS:");
+        if (ImGui::Button("Logo / Icon", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::LogoIcon;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Logos, icons, high-contrast graphics\nSimple binary threshold");
+
+        if (ImGui::Button("Document / Text", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::Document;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Scanned documents, printed text\nAdaptive threshold for uneven lighting");
+
+        if (ImGui::Button("Silhouette", ImVec2(-1, 0))) {
+            m_vectorizerParams.mode = VectorizerParams::Mode::Silhouette;
+            m_vectorizerParams.resetToDefaults();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Solid shapes, shadows, outlines\nHigh contrast + morphological cleanup");
+
+        ImGui::Spacing();
+        ImGui::Separator();
+    }
+
+    //==========================================================================
+    // CURRENT MODE INFO
+    //==========================================================================
+    {
+        const char* modeNames[] = {
+            "Photo - General", "Photo - Portrait", "Photo - High Detail",
+            "People - Face Focus", "People - Headshot", "People - Full Body", "People - Artistic",
+            "Cartoon / Anime", "Line Art / Sketch", "Pixel Art",
+            "Logo / Icon", "Document / Text", "Silhouette"
+        };
+        int mode = static_cast<int>(m_vectorizerParams.mode);
+        ImGui::Text("Current: %s", modeNames[mode]);
+
+        ImGui::Checkbox("Invert Image", &m_vectorizerParams.invert);
+
+        ImGui::Spacing();
+        if (ImGui::Button("Reset to Defaults", ImVec2(-1, 0))) {
+            m_vectorizerParams.resetToDefaults();
+        }
+    }
+
+    //==========================================================================
+    // PREPROCESSING
+    //==========================================================================
+    if (ImGui::CollapsingHeader("Preprocessing")) {
+        ImGui::SliderFloat("Blur", &m_vectorizerParams.blurRadius, 0.0f, 5.0f, "%.1f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reduce noise before edge detection.");
+
+        ImGui::SliderFloat("Brightness", &m_vectorizerParams.brightness, -1.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Adjust overall image brightness.");
+
+        ImGui::SliderFloat("Contrast", &m_vectorizerParams.contrast, 0.5f, 2.0f, "%.2f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase contrast for clearer edges.");
+    }
+
+    //==========================================================================
+    // MODE-SPECIFIC PARAMETERS
+    //==========================================================================
+    if (ImGui::CollapsingHeader("Detection Parameters")) {
+        switch (m_vectorizerParams.mode) {
+            case VectorizerParams::Mode::PhotoGeneral:
+            case VectorizerParams::Mode::PhotoHighDetail:
+                ImGui::SliderFloat("Low Threshold", &m_vectorizerParams.cannyLow, 10.0f, 150.0f, "%.0f");
+                ImGui::SliderFloat("High Threshold", &m_vectorizerParams.cannyHigh, 30.0f, 300.0f, "%.0f");
+                if (m_vectorizerParams.cannyLow >= m_vectorizerParams.cannyHigh) {
+                    m_vectorizerParams.cannyLow = m_vectorizerParams.cannyHigh * 0.33f;
+                }
+                break;
+
+            case VectorizerParams::Mode::PhotoPortrait:
+                ImGui::Text("Bilateral Filter:");
+                ImGui::SliderInt("Filter Size", &m_vectorizerParams.bilateralD, 5, 15);
+                ImGui::SliderFloat("Color Sigma", &m_vectorizerParams.bilateralSigmaColor, 20.0f, 150.0f, "%.0f");
+                ImGui::SliderFloat("Space Sigma", &m_vectorizerParams.bilateralSigmaSpace, 20.0f, 150.0f, "%.0f");
+                ImGui::Separator();
+                ImGui::Text("Edge Detection:");
+                ImGui::SliderFloat("Low Threshold", &m_vectorizerParams.cannyLow, 10.0f, 150.0f, "%.0f");
+                ImGui::SliderFloat("High Threshold", &m_vectorizerParams.cannyHigh, 30.0f, 300.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::PeopleFace:
+            case VectorizerParams::Mode::PeopleHeadshot:
+            case VectorizerParams::Mode::PeopleFullBody:
+                ImGui::Text("Face Detection:");
+                ImGui::SliderFloat("Skin Sensitivity", &m_vectorizerParams.skinSensitivity, 0.5f, 2.0f, "%.1f");
+                ImGui::SliderFloat("Min Face Size", &m_vectorizerParams.minFaceRatio, 0.02f, 0.2f, "%.2f");
+                ImGui::Checkbox("Detect Multiple Faces", &m_vectorizerParams.detectMultipleFaces);
+                ImGui::Separator();
+                ImGui::Text("Regional Processing:");
+                ImGui::SliderFloat("Face Emphasis", &m_vectorizerParams.faceEmphasis, 1.0f, 3.0f, "%.1f");
+                ImGui::SliderFloat("Background Simplify", &m_vectorizerParams.backgroundSimplify, 1.0f, 5.0f, "%.1f");
+                ImGui::Separator();
+                ImGui::SliderFloat("Low Threshold", &m_vectorizerParams.cannyLow, 10.0f, 150.0f, "%.0f");
+                ImGui::SliderFloat("High Threshold", &m_vectorizerParams.cannyHigh, 30.0f, 300.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::PeopleArtistic:
+                ImGui::Text("Face Detection:");
+                ImGui::SliderFloat("Skin Sensitivity", &m_vectorizerParams.skinSensitivity, 0.5f, 2.0f, "%.1f");
+                ImGui::SliderFloat("Face Emphasis", &m_vectorizerParams.faceEmphasis, 1.5f, 4.0f, "%.1f");
+                ImGui::Separator();
+                ImGui::Text("Line Art (DoG):");
+                ImGui::SliderFloat("Fine Detail", &m_vectorizerParams.dogSigma1, 0.5f, 2.0f, "%.1f");
+                ImGui::SliderFloat("Coarse Detail", &m_vectorizerParams.dogSigma2, 1.0f, 4.0f, "%.1f");
+                if (m_vectorizerParams.dogSigma2 <= m_vectorizerParams.dogSigma1) {
+                    m_vectorizerParams.dogSigma2 = m_vectorizerParams.dogSigma1 * 2.0f;
+                }
+                ImGui::SliderFloat("Line Threshold", &m_vectorizerParams.lineThreshold, 5.0f, 40.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::Cartoon:
+                ImGui::SliderInt("Color Levels", &m_vectorizerParams.colorLevels, 2, 16);
+                ImGui::SliderFloat("Edge Threshold", &m_vectorizerParams.threshold, 10.0f, 100.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::LineArt:
+                ImGui::SliderFloat("Fine Detail (Sigma 1)", &m_vectorizerParams.dogSigma1, 0.5f, 3.0f, "%.1f");
+                ImGui::SliderFloat("Coarse Detail (Sigma 2)", &m_vectorizerParams.dogSigma2, 1.0f, 6.0f, "%.1f");
+                if (m_vectorizerParams.dogSigma2 <= m_vectorizerParams.dogSigma1) {
+                    m_vectorizerParams.dogSigma2 = m_vectorizerParams.dogSigma1 * 2.0f;
+                }
+                ImGui::SliderFloat("Line Threshold", &m_vectorizerParams.lineThreshold, 5.0f, 50.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::PixelArt:
+            case VectorizerParams::Mode::LogoIcon:
+            case VectorizerParams::Mode::Silhouette:
+                ImGui::SliderFloat("Threshold", &m_vectorizerParams.threshold, 0.0f, 255.0f, "%.0f");
+                break;
+
+            case VectorizerParams::Mode::Document:
+                ImGui::SliderInt("Block Size", &m_vectorizerParams.adaptiveBlockSize, 3, 51);
+                if (m_vectorizerParams.adaptiveBlockSize % 2 == 0) m_vectorizerParams.adaptiveBlockSize++;
+                ImGui::SliderFloat("Constant C", &m_vectorizerParams.adaptiveC, -10.0f, 15.0f, "%.1f");
+                break;
+        }
+    }
+
+    //==========================================================================
+    // CONTOUR PROCESSING
+    //==========================================================================
+    if (ImGui::CollapsingHeader("Contour Processing")) {
+        ImGui::SliderInt("Min Length", &m_vectorizerParams.minContourLength, 3, 100);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Minimum points per contour.");
+
+        ImGui::SliderFloat("Simplify", &m_vectorizerParams.simplifyEpsilon, 0.5f, 10.0f, "%.1f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Douglas-Peucker simplification.");
+
+        ImGui::SliderFloat("Connect Dist", &m_vectorizerParams.connectDistance, 0.0f, 20.0f, "%.1f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Max gap to bridge between contours.");
+
+        ImGui::Checkbox("Close Contours", &m_vectorizerParams.closedContours);
+    }
+
+    //==========================================================================
+    // OUTPUT
+    //==========================================================================
+    if (ImGui::CollapsingHeader("Output")) {
+        ImGui::SliderInt("Max Points", &m_vectorizerParams.maxOutputPoints, 1000, 20000);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Maximum points in output pattern.");
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    //==========================================================================
+    // PROCESS BUTTON
+    //==========================================================================
+    bool canProcess = m_vectorizerImageLoaded;
+
+    if (!canProcess) ImGui::BeginDisabled();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.9f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+    if (ImGui::Button("Process Image", ImVec2(-1, 40))) {
+        statusMessage = "Processing...";
+        m_vectorizer.process(m_vectorizerParams);
+        previewX.clear();
+        previewY.clear();
+        m_vectorizer.generatePattern(previewX, previewY, m_vectorizerParams);
+        statusMessage = "Done! " + std::to_string(previewX.size()) + " points generated";
+    }
+    ImGui::PopStyleColor(2);
+    if (!canProcess) ImGui::EndDisabled();
+
+    ImGui::Spacing();
+
+    //==========================================================================
+    // APPLY TO OSCILLOSCOPE BUTTON
+    //==========================================================================
+    bool canApply = !previewX.empty();
+    if (!canApply) ImGui::BeginDisabled();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.4f, 1.0f));
+    if (ImGui::Button("Apply to Oscilloscope", ImVec2(-1, 35))) {
+        // Copy pattern to app
+        Pattern& pattern = app.getPattern();
+        pattern.clear();
+        pattern.reserve(previewX.size());
+        for (size_t i = 0; i < previewX.size(); ++i) {
+            pattern.push_back(previewX[i], previewY[i]);
+        }
+        app.getAudioEngine().setPattern(pattern);
+        m_3dShapeActive = false;  // Stop 3D animation from overwriting
+        statusMessage = "Pattern applied to oscilloscope!";
+    }
+    ImGui::PopStyleColor(2);
+    if (!canApply) ImGui::EndDisabled();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    // Status
+    ImGui::TextWrapped("Status: %s", statusMessage.c_str());
+
+    // Stats
+    if (!previewX.empty()) {
+        ImGui::Text("Preview: %zu points", previewX.size());
+        ImGui::Text("Contours: %zu", m_vectorizer.getContours().size());
+    }
+
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    // Right panel - Preview
+    ImGui::BeginChild("VectorizerPreview", ImVec2(0, 0), true);
+
+    ImGui::Text("Preview");
+    ImGui::Separator();
+
+    // Draw the pattern preview using ImPlot
+    float previewSize = ImGui::GetContentRegionAvail().x - 20;
+    if (previewSize < 200) previewSize = 200;
+
+    if (ImPlot::BeginPlot("##VecPatternPreview", ImVec2(previewSize, previewSize),
+                          ImPlotFlags_Equal | ImPlotFlags_NoLegend)) {
+        ImPlot::SetupAxes("X", "Y", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
+        ImPlot::SetupAxisLimits(ImAxis_X1, -1.1, 1.1, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, -1.1, 1.1, ImGuiCond_Always);
+
+        // Draw pattern
+        if (!previewX.empty()) {
+            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.4f, 1.0f, 0.3f, 1.0f));
+            ImPlot::PlotLine("Pattern", previewX.data(), previewY.data(),
+                            static_cast<int>(previewX.size()));
+            ImPlot::PopStyleColor();
+        }
+
+        ImPlot::EndPlot();
+    }
+
+    ImGui::Spacing();
+    ImGui::TextWrapped("Tip: After processing, click 'Apply to Oscilloscope' to use the pattern.");
+
+    ImGui::EndChild();
 
     ImGui::End();
 }
