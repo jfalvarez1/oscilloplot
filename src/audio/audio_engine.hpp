@@ -137,6 +137,12 @@ public:
     void setSampleRate(int baseRate, int multiplier);
     int getActualSampleRate() const { return m_actualSampleRate; }
 
+    // Completed pattern cycles since play() started. The sequencer polls this
+    // from the UI thread to know when to advance to the next step.
+    uint32_t getPatternCycleCount() const {
+        return m_patternCycleCount.load(std::memory_order_relaxed);
+    }
+
     void setDuration(float seconds) { m_duration = seconds; }
     void setPatternRepeats(int repeats) { m_patternRepeats = repeats; }
 
@@ -222,7 +228,7 @@ private:
     uint32_t m_fadeStep = 0;
     uint32_t m_noiseState = 12345;  // xorshift PRNG state
     float m_effectTime = 0.0f;      // Time accumulator for time-based effects
-    uint32_t m_patternCycleCount = 0;
+    std::atomic<uint32_t> m_patternCycleCount{0};  // Written by audio thread, read by UI (sequencer)
 
     // Visualization
     VisualizationCallback m_visualizationCallback;

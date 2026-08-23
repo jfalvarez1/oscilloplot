@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <set>
 #include <cfloat>
 
@@ -111,6 +113,8 @@ void UIManager::render(App& app) {
         m_firstRender = false;
     }
 
+    updateSequencer(app);
+
     renderMenuBar(app);
     renderControlPanel(app);
     renderOscilloscopeDisplay(app);
@@ -132,6 +136,9 @@ void UIManager::render(App& app) {
     }
     if (m_show3DShapeGenerator) {
         render3DShapeGenerator(app);
+    }
+    if (m_showSequencer) {
+        renderSequencer(app);
     }
     if (m_showImageVectorizer) {
         renderImageVectorizer(app);
@@ -323,6 +330,357 @@ void UIManager::doExportWav(App& app) {
     }
 }
 
+//==============================================================================
+// Sequencer - chains patterns over time
+//
+// The audio engine loops a single pattern forever; the sequencer drives it
+// from the UI thread by watching the engine's cycle counter and swapping in
+// the next step's pattern when the current step has run its cycles. This is
+// the same UI-thread setPattern() path the 3D animation already uses, so no
+// new realtime machinery is needed.
+//==============================================================================
+
+void UIManager::sequencerApplyStep(App& app, int index) {
+    if (index < 0 || index >= static_cast<int>(m_sequencer.steps.size())) return;
+    m_sequencer.currentStep = index;
+    app.getPattern() = m_sequencer.steps[index].pattern;
+    app.getAudioEngine().setPattern(app.getPattern());
+    m_sequencer.cyclesAtStepStart = app.getAudioEngine().getPatternCycleCount();
+}
+
+void UIManager::sequencerStart(App& app) {
+    if (m_sequencer.steps.empty()) {
+        setStatus("Sequence is empty - capture a pattern first", true);
+        return;
+    }
+    // The sequence owns the pattern now; stop other sources overwriting it.
+    m_3dShapeActive = false;
+    m_shape3D.animate = false;
+
+    m_sequencer.playing = true;
+    if (!app.isPlaying()) {
+        app.setPlaying(true);   // Starts the stream and resets the cycle counter
+    }
+    sequencerApplyStep(app, 0);
+}
+
+void UIManager::sequencerStop(App& app) {
+    m_sequencer.playing = false;
+    m_sequencer.currentStep = -1;
+    if (app.isPlaying()) {
+        app.setPlaying(false);
+    }
+}
+
+void UIManager::updateSequencer(App& app) {
+    if (!m_sequencer.playing) return;
+
+    // The user stopped playback out from under the sequence (Space/Stop):
+    // treat that as stopping the sequence too.
+    if (!app.isPlaying()) {
+        m_sequencer.playing = false;
+        m_sequencer.currentStep = -1;
+        return;
+    }
+    if (m_sequencer.currentStep < 0 ||
+        m_sequencer.currentStep >= static_cast<int>(m_sequencer.steps.size())) {
+        sequencerStop(app);
+        return;
+    }
+
+    const SequenceStep& step = m_sequencer.steps[m_sequencer.currentStep];
+    uint32_t done = app.getAudioEngine().getPatternCycleCount() -
+                    m_sequencer.cyclesAtStepStart;
+    if (done >= static_cast<uint32_t>(std::max(1, step.cycles))) {
+        int next = m_sequencer.currentStep + 1;
+        if (next >= static_cast<int>(m_sequencer.steps.size())) {
+            if (m_sequencer.loop) {
+                next = 0;
+            } else {
+                sequencerStop(app);
+                setStatus("Sequence finished");
+                return;
+            }
+        }
+        sequencerApplyStep(app, next);
+    }
+}
+
+void UIManager::sequencerSave() {
+    if (m_sequencer.steps.empty()) {
+        setStatus("Sequence is empty - nothing to save", true);
+        return;
+    }
+    std::string path = pfd::save_file(
+        "Save Sequence", "sequence.oseq",
+        { "Oscilloplot Sequence", "*.oseq", "All Files", "*" }
+    ).result();
+    if (path.empty()) return;
+    if (path.size() < 5 || path.substr(path.size() - 5) != ".oseq") path += ".oseq";
+
+    std::ofstream f(path);
+    if (!f.is_open()) {
+        setStatus("Failed to create " + path, true);
+        return;
+    }
+    f << "OSEQ 1\n";
+    f << "loop " << (m_sequencer.loop ? 1 : 0) << "\n";
+    f << "steps " << m_sequencer.steps.size() << "\n";
+    for (const auto& step : m_sequencer.steps) {
+        f << "step " << step.cycles << " " << step.pattern.size()
+          << " " << step.name << "\n";
+        for (size_t i = 0; i < step.pattern.size(); ++i) {
+            f << step.pattern.x[i] << " " << step.pattern.y[i] << "\n";
+        }
+    }
+    if (f.good()) {
+        setStatus("Saved sequence (" + std::to_string(m_sequencer.steps.size()) + " steps)");
+    } else {
+        setStatus("Failed writing " + path, true);
+    }
+}
+
+void UIManager::sequencerLoad() {
+    auto selection = pfd::open_file(
+        "Load Sequence", "",
+        { "Oscilloplot Sequence", "*.oseq", "All Files", "*" }
+    ).result();
+    if (selection.empty()) return;
+
+    std::ifstream f(selection[0]);
+    if (!f.is_open()) {
+        setStatus("Failed to open " + selection[0], true);
+        return;
+    }
+
+    std::string magic;
+    int version = 0;
+    f >> magic >> version;
+    if (magic != "OSEQ" || version != 1) {
+        setStatus("Not an Oscilloplot sequence file", true);
+        return;
+    }
+
+    SequencerState loaded;
+    std::string key;
+    int loopFlag = 1;
+    size_t stepCount = 0;
+    f >> key >> loopFlag;      // loop N
+    f >> key >> stepCount;     // steps N
+    if (!f.good() || stepCount > 10000) {
+        setStatus("Sequence file is malformed", true);
+        return;
+    }
+
+    for (size_t sIdx = 0; sIdx < stepCount; ++sIdx) {
+        SequenceStep step;
+        size_t npoints = 0;
+        f >> key >> step.cycles >> npoints;   // step C N name...
+        std::string nameRest;
+        std::getline(f, nameRest);
+        size_t begin = nameRest.find_first_not_of(" \t");
+        if (begin != std::string::npos) nameRest = nameRest.substr(begin);
+        snprintf(step.name, sizeof(step.name), "%s",
+                 nameRest.empty() ? "Step" : nameRest.c_str());
+
+        if (!f.good() || npoints > AudioEngine::MAX_PATTERN_SIZE) {
+            setStatus("Sequence file is malformed", true);
+            return;
+        }
+        step.pattern.reserve(npoints);
+        for (size_t i = 0; i < npoints; ++i) {
+            float x, y;
+            if (!(f >> x >> y)) {
+                setStatus("Sequence file is truncated", true);
+                return;
+            }
+            step.pattern.push_back(x, y);
+        }
+        loaded.steps.push_back(std::move(step));
+    }
+
+    loaded.loop = (loopFlag != 0);
+    m_sequencer = std::move(loaded);
+    setStatus("Loaded sequence (" + std::to_string(m_sequencer.steps.size()) + " steps)");
+}
+
+void UIManager::sequencerExportWav(App& app) {
+    if (m_sequencer.steps.empty()) {
+        setStatus("Sequence is empty - nothing to export", true);
+        return;
+    }
+    std::string path = pfd::save_file(
+        "Export Sequence WAV", "sequence.wav",
+        { "WAV Audio", "*.wav", "All Files", "*" }
+    ).result();
+    if (path.empty()) return;
+    path = ensureExtension(path, ".wav");
+
+    int sampleRate = app.getSampleRate() * app.getPlaybackMultiplier();
+    if (sampleRate < 1) sampleRate = 44100;
+
+    constexpr size_t MAX_EXPORT_FRAMES = 64u * 1024u * 1024u;  // 512 MB stereo float
+    std::vector<float> buffer;
+    bool truncated = false;
+
+    for (const auto& step : m_sequencer.steps) {
+        if (step.pattern.empty()) continue;
+        int cycles = std::max(1, step.cycles);
+        for (int c = 0; c < cycles && !truncated; ++c) {
+            if (buffer.size() / 2 + step.pattern.size() > MAX_EXPORT_FRAMES) {
+                truncated = true;
+                break;
+            }
+            for (size_t i = 0; i < step.pattern.size(); ++i) {
+                buffer.push_back(step.pattern.x[i]);
+                buffer.push_back(step.pattern.y[i]);
+            }
+        }
+        if (truncated) break;
+    }
+
+    if (buffer.empty()) {
+        setStatus("Sequence has no points to export", true);
+        return;
+    }
+
+    if (WavExport::exportToWav(path, buffer, sampleRate)) {
+        double seconds = static_cast<double>(buffer.size() / 2) / sampleRate;
+        char msg[192];
+        snprintf(msg, sizeof(msg), "Exported sequence: %.2fs at %d Hz%s",
+                 seconds, sampleRate, truncated ? " - truncated to fit memory" : "");
+        setStatus(msg, truncated);
+    } else {
+        setStatus("Failed to export " + path, true);
+    }
+}
+
+void UIManager::renderSequencer(App& app) {
+    ImGui::SetNextWindowPos(ImVec2(420, 80), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, 480), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Sequencer", &m_showSequencer);
+
+    // Transport
+    const bool seqPlaying = m_sequencer.playing;
+    if (seqPlaying) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        if (ImGui::Button("Stop Sequence", ImVec2(-1, 34))) sequencerStop(app);
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1.0f));
+        if (ImGui::Button("Play Sequence", ImVec2(-1, 34))) sequencerStart(app);
+        ImGui::PopStyleColor();
+    }
+    ImGui::Checkbox("Loop", &m_sequencer.loop);
+
+    ImGui::Separator();
+
+    // Capture the pattern currently on screen as a new step
+    if (ImGui::Button("+ Capture Current Pattern", ImVec2(-1, 0))) {
+        const Pattern& current = app.getPattern();
+        if (current.empty()) {
+            setStatus("Current pattern is empty", true);
+        } else {
+            SequenceStep step;
+            step.pattern = current;
+            snprintf(step.name, sizeof(step.name), "Step %d",
+                     static_cast<int>(m_sequencer.steps.size()) + 1);
+            m_sequencer.steps.push_back(std::move(step));
+        }
+    }
+
+    // Step list
+    int actualRate = app.getSampleRate() * app.getPlaybackMultiplier();
+    int removeIdx = -1, moveUpIdx = -1, moveDownIdx = -1;
+
+    ImGui::BeginChild("StepList", ImVec2(0, -70), true);
+    for (int i = 0; i < static_cast<int>(m_sequencer.steps.size()); ++i) {
+        SequenceStep& step = m_sequencer.steps[i];
+        ImGui::PushID(i);
+
+        bool isCurrent = seqPlaying && (i == m_sequencer.currentStep);
+        if (isCurrent) {
+            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), ">");
+        } else {
+            ImGui::TextDisabled("%d", i + 1);
+        }
+        ImGui::SameLine();
+
+        ImGui::SetNextItemWidth(110);
+        ImGui::InputText("##name", step.name, sizeof(step.name));
+        ImGui::SameLine();
+
+        ImGui::SetNextItemWidth(80);
+        ImGui::DragInt("##cycles", &step.cycles, 1.0f, 1, 100000, "%d cyc");
+        if (ImGui::IsItemHovered() && actualRate > 0 && !step.pattern.empty()) {
+            float secs = static_cast<float>(step.cycles) *
+                         static_cast<float>(step.pattern.size()) / static_cast<float>(actualRate);
+            ImGui::SetTooltip("%zu points, ~%.2fs", step.pattern.size(), secs);
+        }
+        ImGui::SameLine();
+
+        // Preview loads the step's pattern without starting the sequence
+        if (ImGui::SmallButton("View")) {
+            if (!seqPlaying) {
+                m_3dShapeActive = false;
+                m_shape3D.animate = false;
+                app.getPattern() = step.pattern;
+                app.getAudioEngine().setPattern(app.getPattern());
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("^") && i > 0) moveUpIdx = i;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("v") && i + 1 < static_cast<int>(m_sequencer.steps.size())) moveDownIdx = i;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("X")) removeIdx = i;
+
+        ImGui::PopID();
+    }
+    if (m_sequencer.steps.empty()) {
+        ImGui::TextDisabled("No steps yet.");
+        ImGui::TextWrapped("Make a pattern with any generator, then press "
+                           "'+ Capture Current Pattern' to add it here.");
+    }
+    ImGui::EndChild();
+
+    // Structural edits happen outside the loop; adjust indices so a playing
+    // sequence keeps pointing at the same step.
+    if (moveUpIdx > 0) {
+        std::swap(m_sequencer.steps[moveUpIdx], m_sequencer.steps[moveUpIdx - 1]);
+        if (m_sequencer.currentStep == moveUpIdx) m_sequencer.currentStep--;
+        else if (m_sequencer.currentStep == moveUpIdx - 1) m_sequencer.currentStep++;
+    }
+    if (moveDownIdx >= 0) {
+        std::swap(m_sequencer.steps[moveDownIdx], m_sequencer.steps[moveDownIdx + 1]);
+        if (m_sequencer.currentStep == moveDownIdx) m_sequencer.currentStep++;
+        else if (m_sequencer.currentStep == moveDownIdx + 1) m_sequencer.currentStep--;
+    }
+    if (removeIdx >= 0) {
+        m_sequencer.steps.erase(m_sequencer.steps.begin() + removeIdx);
+        if (m_sequencer.steps.empty()) {
+            sequencerStop(app);
+        } else if (m_sequencer.currentStep > removeIdx) {
+            m_sequencer.currentStep--;
+        } else if (m_sequencer.currentStep == removeIdx) {
+            // The playing step vanished; jump to what now sits at its index
+            int next = std::min(removeIdx,
+                                static_cast<int>(m_sequencer.steps.size()) - 1);
+            if (m_sequencer.playing) sequencerApplyStep(app, next);
+        }
+    }
+
+    // File row
+    float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
+    if (ImGui::Button("Save...", ImVec2(w, 0))) sequencerSave();
+    ImGui::SameLine();
+    if (ImGui::Button("Load...", ImVec2(w, 0))) sequencerLoad();
+    ImGui::SameLine();
+    if (ImGui::Button("Export WAV...", ImVec2(w, 0))) sequencerExportWav(app);
+
+    ImGui::End();
+}
+
 void UIManager::renderMenuBar(App& app) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
@@ -352,6 +710,7 @@ void UIManager::renderMenuBar(App& app) {
             ImGui::MenuItem("Drawing Canvas", nullptr, &m_showDrawingCanvas);
             ImGui::MenuItem("3D Shape Generator", nullptr, &m_show3DShapeGenerator);
             ImGui::MenuItem("Image Vectorizer", nullptr, &m_showImageVectorizer);
+            ImGui::MenuItem("Sequencer", nullptr, &m_showSequencer);
             ImGui::Separator();
             ImGui::MenuItem("Display Settings", nullptr, &m_showDisplaySettings);
             ImGui::Separator();

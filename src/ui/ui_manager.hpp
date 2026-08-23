@@ -5,6 +5,7 @@
 #include <string>
 #include "vectorizer/image_vectorizer.hpp"
 #include "data/obj_loader.hpp"
+#include "data/pattern.hpp"
 
 namespace oscilloplot {
 
@@ -208,6 +209,23 @@ struct Shape3DState {
 };
 
 //==============================================================================
+// Sequencer State - chains patterns over time
+//==============================================================================
+struct SequenceStep {
+    Pattern pattern;
+    int cycles = 200;               // Pattern repetitions before advancing
+    char name[32] = "Step";
+};
+
+struct SequencerState {
+    std::vector<SequenceStep> steps;
+    bool playing = false;           // Sequence playback active
+    bool loop = true;               // Wrap to step 0 at the end
+    int currentStep = -1;           // Index while playing, -1 otherwise
+    uint32_t cyclesAtStepStart = 0; // Engine cycle count when this step began
+};
+
+//==============================================================================
 // UI Manager
 //==============================================================================
 class UIManager {
@@ -253,6 +271,16 @@ private:
     void doSavePattern(App& app);
     void doExportWav(App& app);
 
+    // Sequencer
+    void renderSequencer(App& app);
+    void updateSequencer(App& app);     // Per-frame step advancement
+    void sequencerStart(App& app);
+    void sequencerStop(App& app);
+    void sequencerApplyStep(App& app, int index);
+    void sequencerSave();
+    void sequencerLoad();
+    void sequencerExportWav(App& app);
+
     // Transient status line shown at the right of the menu bar
     void setStatus(const std::string& message, bool isError = false);
     std::string m_statusMessage;
@@ -291,6 +319,10 @@ private:
 
     // Drawing canvas state
     DrawingState m_drawing;
+
+    // Sequencer state
+    SequencerState m_sequencer;
+    bool m_showSequencer = false;
 
     // 3D shape generator state
     Shape3DState m_shape3D;

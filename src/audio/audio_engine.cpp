@@ -163,7 +163,7 @@ void AudioEngine::play() {
     m_currentRotationAngle = 0.0f;
     m_kaleidoscopeAngle = 0.0f;
     m_fadeStep = 0;
-    m_patternCycleCount = 0;
+    m_patternCycleCount.store(0, std::memory_order_relaxed);
     m_noiseState = 12345;
     m_echoWritePos = 0;
 
@@ -272,7 +272,10 @@ int AudioEngine::processAudio(float* output, unsigned long frameCount) {
         size_t endCycle = (pos + chunkSize - 1) / patternSize;
         if (endCycle > startCycle) {
             m_fadeStep++;
-            m_patternCycleCount++;
+            // Audio thread is the only writer; relaxed is sufficient
+            m_patternCycleCount.store(
+                m_patternCycleCount.load(std::memory_order_relaxed) + 1,
+                std::memory_order_relaxed);
         }
 
         // Apply effects (SIMD optimized)
