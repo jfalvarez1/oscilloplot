@@ -6,7 +6,7 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
 
 ## Download
 
-**[Download Latest Release (Windows x64)](https://github.com/zerav/oscilloplot/releases/latest)** - No installation required, just extract and run!
+**[Download Latest Release (Windows x64)](https://github.com/jfalvarez1/oscilloplot/releases/latest)** - No installation required, just extract and run!
 
 ## Screenshots
 
