@@ -22,7 +22,7 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
   - Random harmonics
   - Freehand drawing canvas
   - Sound pad grid
-- **3D Shape Generator** with 19 shapes:
+- **3D Shape Generator** with 20 sources:
   - Platonic solids: Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron
   - Curved surfaces: Sphere, Torus, Cylinder, Cone
   - Prisms: Pyramid, N-sided Prism
@@ -30,6 +30,9 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
   - Topological: Mobius Strip, Klein Bottle
   - Special: Spring, 3D Star
   - **3D Text**: Type any text and render it as a rotating 3D wireframe!
+  - **OBJ Model import**: load any Wavefront `.obj` mesh as a wireframe. The
+    model is auto-centered and scaled to fit, and an adjustable edge cap keeps
+    dense meshes traceable.
 - **Rich effects pipeline**:
   - Rotation (static/animated)
   - X/Y axis fading
@@ -40,9 +43,12 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
   - Ring modulation
   - Echo/delay
   - Kaleidoscope
-- **File I/O**:
-  - Load/save patterns (text, binary)
-  - Export to WAV audio files
+- **File I/O** (File menu, or Ctrl+O / Ctrl+S / Ctrl+E):
+  - Load patterns from text/CSV (`X, Y` per line), Oscilloplot binary (`.osc`),
+    or MATLAB-style `.m` scripts
+  - Save patterns as text or `.osc` binary
+  - Export stereo WAV (left = X, right = Y) at the configured rate and duration
+  - Import Wavefront `.obj` meshes
 - **Cross-platform**: Windows, macOS, Linux
 
 ---
@@ -215,20 +221,64 @@ Each mode has optimized default parameters, but you can fine-tune them:
 
 ### Windows (with vcpkg)
 
+The default Windows build is **standalone**: every dependency is linked
+statically, so the result is a single `oscilloplot.exe` with no SDL2.dll,
+portaudio.dll, or sndfile.dll beside it, and no VC++ Redistributable required.
+
 ```powershell
 # 1. Setup external dependencies (ImGui, ImPlot, PocketFFT)
 ./setup_externals.ps1
 
-# 2. Install vcpkg dependencies
-vcpkg install sdl2 portaudio libsndfile glm --triplet=x64-windows
-
-# 3. Configure and build
+# 2. Configure and build. The static triplet is selected automatically;
+#    vcpkg installs the dependencies from vcpkg.json on first configure.
 cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="[vcpkg-root]/scripts/buildsystems/vcpkg.cmake"
 cmake --build build --config Release
 
-# 4. Run
+# 3. Run
 ./build/Release/oscilloplot.exe
 ```
+
+To build against DLLs instead (faster incremental links during development):
+
+```powershell
+cmake -B build-dyn -S . -DOSCILLOPLOT_STANDALONE=OFF `
+      -DCMAKE_TOOLCHAIN_FILE="[vcpkg-root]/scripts/buildsystems/vcpkg.cmake"
+cmake --build build-dyn --config Release
+```
+
+### Build Options
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `OSCILLOPLOT_STANDALONE` | `ON` | Single self-contained .exe (static deps + static CRT, GUI subsystem, no console window). `OFF` links against DLLs. |
+| `OSCILLOPLOT_SIMD_LEVEL` | `SSE2` | SIMD baseline: `SSE2`, `AVX`, or `AVX2`. |
+| `OSCILLOPLOT_ENABLE_SIMD` | `ON` | Master switch for the SIMD baseline above. |
+| `OSCILLOPLOT_ENABLE_LTO` | `ON` | Link-time optimization on Release. |
+| `OSCILLOPLOT_ENABLE_NATIVE` | `OFF` | `-march=native` (GCC/Clang). Not portable. |
+
+## Windows Compatibility
+
+Release builds are made to run on **any** Windows 11 machine (and Windows 10
+back to 1607), not just modern hardware:
+
+- **SSE2 SIMD baseline.** `AVX2` is faster but faults with an illegal
+  instruction on anything older than Haswell (2013), including machines running
+  Windows 11 via an unsupported-hardware install. Build with
+  `-DOSCILLOPLOT_SIMD_LEVEL=AVX2` for a faster binary tied to your own CPU.
+- **OpenGL fallback chain.** The app tries 3.3 Core, then 3.2 Core, then 3.0,
+  instead of demanding 3.3 outright — older integrated graphics often advertise
+  only 3.0 or 3.2 while being perfectly capable of running this UI. OpenGL 3.0
+  is a hard floor: ImGui's renderer requires vertex array objects, which do not
+  exist before then. A machine with no graphics driver at all (Microsoft Basic
+  Display Adapter, some VMs and Remote Desktop sessions) offers only OpenGL 1.1
+  and cannot be supported without shipping a software renderer; it now gets an
+  explanatory dialog instead of exiting silently.
+- **Audio is optional.** With no output device the app still opens; the
+  visualizer and file export work, and the menu bar says `[No audio device]`.
+- **Static CRT.** No VC++ Redistributable install needed.
+- **Application manifest.** Declares Windows 10/11 support (so version APIs
+  aren't shimmed), per-monitor-v2 DPI awareness, long-path support, and a UTF-8
+  ANSI code page for non-ASCII file paths.
 
 ### macOS
 
@@ -273,6 +323,9 @@ cmake --build build
 ### Keyboard Shortcuts
 
 - **Space**: Play/Stop
+- **Ctrl+O**: Load pattern
+- **Ctrl+S**: Save pattern
+- **Ctrl+E**: Export WAV
 - **Escape**: Exit
 
 ### Quick Start
@@ -305,7 +358,7 @@ Connect to an oscilloscope in X-Y mode to visualize the patterns on hardware.
 - [ ] MIDI input support
 - [ ] VST plugin hosting
 - [ ] Pattern sequencing/timeline
-- [ ] More 3D shape import (OBJ files)
+- [x] 3D shape import (OBJ files)
 
 ## License
 

@@ -34,10 +34,17 @@ public:
     bool isPlaying() const { return m_isPlaying; }
     void setPlaying(bool playing);
 
+    // Request a graceful shutdown of the main loop (File > Exit, etc.)
+    void requestExit() { m_running = false; }
+
     Pattern& getPattern() { return *m_pattern; }
     const Pattern& getPattern() const { return *m_pattern; }
 
     AudioEngine& getAudioEngine() { return *m_audioEngine; }
+
+    // False when no audio output device could be opened; the app still runs,
+    // with the visualizer and file export intact.
+    bool isAudioAvailable() const { return m_audioAvailable; }
 
     // Effect parameters (for UI binding)
     EffectParams& getEffects();
@@ -59,6 +66,11 @@ public:
 private:
     bool initSDL();
     bool initOpenGL();
+
+    // Try one OpenGL configuration, creating the window and context together.
+    // On Windows a window's pixel format is fixed at creation, so a failed
+    // attempt must destroy the window before the next one is tried.
+    bool tryCreateContext(int major, int minor, int profile, const char* glslVersion);
     bool initImGui();
     bool initAudio();
 
@@ -70,9 +82,12 @@ private:
     // Window
     SDL_Window* m_window = nullptr;
     SDL_GLContext m_glContext = nullptr;
+    const char* m_glslVersion = "#version 330";  // Set by the context fallback
+    bool m_audioAvailable = false;               // False if no output device
     int m_windowWidth = 1280;
     int m_windowHeight = 800;
     bool m_running = false;
+    bool m_initialized = false;   // Guards shutdown() against running twice
 
     // Subsystems
     std::unique_ptr<AudioEngine> m_audioEngine;

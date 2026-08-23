@@ -4,6 +4,7 @@
 #include <array>
 #include <string>
 #include "vectorizer/image_vectorizer.hpp"
+#include "data/obj_loader.hpp"
 
 namespace oscilloplot {
 
@@ -154,7 +155,8 @@ struct Shape3DState {
         KleinBottle,
         Spring,
         Star3D,
-        Text3D
+        Text3D,
+        ObjModel
     };
 
     ShapeType shapeType = ShapeType::Torus;  // Default to rotating donut
@@ -192,6 +194,13 @@ struct Shape3DState {
     char textBuffer[64] = "HELLO";
     float textDepth = 0.3f;
     bool textConnectFaces = true;
+
+    // OBJ model specific
+    ObjMesh objMesh;                // Loaded wireframe; empty until a file loads
+    std::string objPath;            // Path of the loaded model
+    std::string objStatus;          // Last load result, shown in the panel
+    int objMaxEdges = 2000;         // Cap on traced edges (dense meshes are slow)
+    size_t objSourceEdges = 0;      // Edge count before decimation
 };
 
 //==============================================================================
@@ -228,6 +237,20 @@ private:
 
     // Helper: Generate 3D shape pattern
     void generate3DShapePattern(App& app);
+
+    // Helper: Load a Wavefront .obj model into the 3D shape generator
+    void loadObjModel(App& app, const std::string& path);
+
+    // File menu actions
+    void doLoadPattern(App& app);
+    void doSavePattern(App& app);
+    void doExportWav(App& app);
+
+    // Transient status line shown at the right of the menu bar
+    void setStatus(const std::string& message, bool isError = false);
+    std::string m_statusMessage;
+    bool m_statusIsError = false;
+    double m_statusTime = 0.0;   // ImGui time when the message was set
 
     // Panel visibility
     bool m_showDemoWindow = false;

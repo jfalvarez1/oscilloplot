@@ -4,13 +4,19 @@
 #include "audio/audio_engine.hpp"
 #include "generators/test_pattern.hpp"
 #include "generators/stroke_font.hpp"
+#include "data/file_loader.hpp"
+#include "data/file_saver.hpp"
+#include "data/obj_loader.hpp"
+#include "audio/wav_export.hpp"
 
 #include <imgui.h>
 #include <implot.h>
 #include <SDL_opengl.h>
 #include <portable-file-dialogs.h>
 #include <cmath>
+#include <cctype>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <algorithm>
 #include <set>
@@ -144,24 +150,191 @@ void UIManager::render(App& app) {
     }
 }
 
-void UIManager::renderMenuBar(App& app) {
-    (void)app;
+//==============================================================================
+// File menu actions
+//==============================================================================
 
+namespace {
+
+// Lowercase extension of a path, including the dot (".txt"), or "" if none.
+std::string fileExtension(const std::string& path) {
+    size_t slash = path.find_last_of("/\\");
+    size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos) return "";
+    if (slash != std::string::npos && dot < slash) return "";
+
+    std::string ext = path.substr(dot);
+    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return ext;
+}
+
+// Append `ext` if the path has no extension of its own. Some GTK/Qt save
+// dialogs return a bare name even when a filter is selected.
+std::string ensureExtension(const std::string& path, const std::string& ext) {
+    return fileExtension(path).empty() ? path + ext : path;
+}
+
+} // namespace
+
+void UIManager::setStatus(const std::string& message, bool isError) {
+    m_statusMessage = message;
+    m_statusIsError = isError;
+    m_statusTime = ImGui::GetTime();
+}
+
+void UIManager::doLoadPattern(App& app) {
+    auto selection = pfd::open_file(
+        "Load Pattern",
+        "",
+        { "Pattern Files", "*.txt *.csv *.dat *.osc *.m",
+          "Text (X,Y per line)", "*.txt *.csv *.dat",
+          "Oscilloplot Binary", "*.osc",
+          "MATLAB Script", "*.m",
+          "All Files", "*" }
+    ).result();
+
+    if (selection.empty()) return;
+
+    const std::string& path = selection[0];
+    std::string ext = fileExtension(path);
+
+    Pattern loaded;
+    bool ok = false;
+    if (ext == ".osc") {
+        ok = FileLoader::loadBinaryFile(path, loaded);
+    } else if (ext == ".m") {
+        ok = FileLoader::loadMatlabFile(path, loaded);
+    } else {
+        ok = FileLoader::loadTextFile(path, loaded);
+    }
+
+    if (!ok || loaded.empty()) {
+        setStatus("Failed to load " + path, true);
+        return;
+    }
+
+    // A loaded pattern becomes the active source; stop the 3D animation from
+    // overwriting it on the next frame.
+    m_3dShapeActive = false;
+    m_shape3D.animate = false;
+
+    Pattern& pattern = app.getPattern();
+    pattern = loaded;
+    app.getAudioEngine().setPattern(pattern);
+
+    // setPattern() silently clamps to MAX_PATTERN_SIZE, so a long capture would
+    // otherwise appear to load fine and then play back only its opening slice.
+    if (pattern.size() > AudioEngine::MAX_PATTERN_SIZE) {
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "Loaded %zu points, but only the first %zu will play",
+                 pattern.size(), AudioEngine::MAX_PATTERN_SIZE);
+        setStatus(msg, true);
+    } else {
+        setStatus("Loaded " + std::to_string(pattern.size()) + " points");
+    }
+}
+
+void UIManager::doSavePattern(App& app) {
+    const Pattern& pattern = app.getPattern();
+    if (pattern.empty()) {
+        setStatus("Nothing to save - pattern is empty", true);
+        return;
+    }
+
+    std::string path = pfd::save_file(
+        "Save Pattern",
+        "pattern.txt",
+        { "Text (X,Y per line)", "*.txt *.csv *.dat",
+          "Oscilloplot Binary", "*.osc",
+          "All Files", "*" }
+    ).result();
+
+    if (path.empty()) return;
+    path = ensureExtension(path, ".txt");
+
+    bool ok = (fileExtension(path) == ".osc")
+        ? FileSaver::saveBinaryFile(path, pattern)
+        : FileSaver::saveTextFile(path, pattern);
+
+    if (ok) {
+        setStatus("Saved " + std::to_string(pattern.size()) + " points");
+    } else {
+        setStatus("Failed to save " + path, true);
+    }
+}
+
+void UIManager::doExportWav(App& app) {
+    const Pattern& pattern = app.getPattern();
+    if (pattern.empty()) {
+        setStatus("Nothing to export - pattern is empty", true);
+        return;
+    }
+
+    std::string path = pfd::save_file(
+        "Export WAV",
+        "oscilloplot.wav",
+        { "WAV Audio", "*.wav", "All Files", "*" }
+    ).result();
+
+    if (path.empty()) return;
+    path = ensureExtension(path, ".wav");
+
+    // Match playback: the pattern is clocked at base rate x multiplier.
+    int sampleRate = app.getSampleRate() * app.getPlaybackMultiplier();
+    if (sampleRate < 1) sampleRate = 44100;
+
+    // Length comes from the Duration control. Playback loops the pattern
+    // indefinitely, so the number of repeats needed is derived from how many
+    // seconds of audio the user asked for.
+    double wanted = static_cast<double>(app.getDuration()) * sampleRate;
+    double rawRepeats = wanted / static_cast<double>(pattern.size()) + 0.5;
+
+    // exportPattern() builds the whole interleaved buffer in memory before
+    // writing. A long duration against a short pattern at 192 kHz can ask for
+    // hundreds of MB, so cap the frame count and say so rather than attempting
+    // an allocation that may fail outright.
+    constexpr size_t MAX_EXPORT_FRAMES = 64u * 1024u * 1024u;  // 512 MB stereo float
+    size_t maxRepeats = MAX_EXPORT_FRAMES / pattern.size();
+    if (maxRepeats < 1) maxRepeats = 1;
+
+    bool clamped = false;
+    if (rawRepeats > static_cast<double>(maxRepeats)) {
+        rawRepeats = static_cast<double>(maxRepeats);
+        clamped = true;
+    }
+
+    int repeats = static_cast<int>(rawRepeats);
+    if (repeats < 1) repeats = 1;
+
+    if (WavExport::exportPattern(path, pattern, sampleRate, repeats)) {
+        double seconds = static_cast<double>(pattern.size()) * repeats / sampleRate;
+        char msg[192];
+        snprintf(msg, sizeof(msg), "Exported %.2fs at %d Hz (%d loops)%s",
+                 seconds, sampleRate, repeats,
+                 clamped ? " - truncated to fit memory" : "");
+        setStatus(msg, clamped);
+    } else {
+        setStatus("Failed to export " + path, true);
+    }
+}
+
+void UIManager::renderMenuBar(App& app) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Load Pattern...")) {
-                // TODO: File dialog
+            if (ImGui::MenuItem("Load Pattern...", "Ctrl+O")) {
+                doLoadPattern(app);
             }
-            if (ImGui::MenuItem("Save Pattern...")) {
-                // TODO: File dialog
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem("Export WAV...")) {
-                // TODO: WAV export
+            if (ImGui::MenuItem("Save Pattern...", "Ctrl+S")) {
+                doSavePattern(app);
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Exit")) {
-                // TODO: Signal exit
+            if (ImGui::MenuItem("Export WAV...", "Ctrl+E")) {
+                doExportWav(app);
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Exit", "Alt+F4")) {
+                app.requestExit();
             }
             ImGui::EndMenu();
         }
@@ -182,7 +355,42 @@ void UIManager::renderMenuBar(App& app) {
             ImGui::EndMenu();
         }
 
+        // Persistent warning when the machine has no usable audio output
+        if (!app.isAudioAvailable()) {
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "  [No audio device - preview only]");
+        }
+
+        // Transient status readout, right-aligned; fades out after a few seconds
+        if (!m_statusMessage.empty()) {
+            constexpr double STATUS_HOLD = 4.0;   // Fully opaque for this long
+            constexpr double STATUS_FADE = 2.0;   // Then fades over this long
+
+            double age = ImGui::GetTime() - m_statusTime;
+            if (age > STATUS_HOLD + STATUS_FADE) {
+                m_statusMessage.clear();
+            } else {
+                float alpha = (age <= STATUS_HOLD)
+                    ? 1.0f
+                    : 1.0f - static_cast<float>((age - STATUS_HOLD) / STATUS_FADE);
+
+                float textWidth = ImGui::CalcTextSize(m_statusMessage.c_str()).x;
+                ImGui::SameLine(ImGui::GetWindowWidth() - textWidth -
+                                ImGui::GetStyle().ItemSpacing.x * 2.0f);
+
+                ImVec4 color = m_statusIsError ? ImVec4(1.0f, 0.45f, 0.4f, alpha)
+                                               : ImVec4(0.5f, 1.0f, 0.6f, alpha);
+                ImGui::TextColored(color, "%s", m_statusMessage.c_str());
+            }
+        }
+
         ImGui::EndMainMenuBar();
+    }
+
+    // Keyboard shortcuts (ignored while a text field has focus)
+    if (!ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl) {
+        if (ImGui::IsKeyPressed(ImGuiKey_O, false)) doLoadPattern(app);
+        if (ImGui::IsKeyPressed(ImGuiKey_S, false)) doSavePattern(app);
+        if (ImGui::IsKeyPressed(ImGuiKey_E, false)) doExportWav(app);
     }
 }
 
@@ -1093,8 +1301,8 @@ void UIManager::generateHarmonicsPattern(App& app) {
 
     // Generate frames
     for (int step = 0; step < maxSteps; ++step) {
-        float stepProgress = (maxSteps > 1) ? static_cast<float>(step) / static_cast<float>(maxSteps - 1) : 0.0f;
-
+        // Each term derives its own progress from its own sweep length below,
+        // so there is no shared per-step progress value to compute here.
         for (int i = 0; i < m_harmonics.numPoints; ++i) {
             float t = TWO_PI * static_cast<float>(i) / static_cast<float>(m_harmonics.numPoints);
             float x = 0.0f, y = 0.0f;
@@ -1882,6 +2090,26 @@ void UIManager::generate3DShapePattern(App& app) {
             app.getAudioEngine().setPattern(pattern);
             return;  // Early return since we handle pattern directly
         }
+        case Shape3DState::ShapeType::ObjModel: {
+            // Nothing loaded yet - leave the pattern empty rather than
+            // silently falling back to another shape.
+            if (m_shape3D.objMesh.empty()) {
+                app.getAudioEngine().setPattern(pattern);
+                return;
+            }
+
+            vertices.reserve(m_shape3D.objMesh.vertices.size());
+            for (const auto& v : m_shape3D.objMesh.vertices) {
+                vertices.emplace_back(v.x, v.y, v.z);
+            }
+            edges = m_shape3D.objMesh.edges;
+            break;
+        }
+    }
+
+    if (vertices.empty() || edges.empty()) {
+        app.getAudioEngine().setPattern(pattern);
+        return;
     }
 
     // Transform and project vertices
@@ -1912,6 +2140,44 @@ void UIManager::generate3DShapePattern(App& app) {
     app.getAudioEngine().setPattern(pattern);
 }
 
+void UIManager::loadObjModel(App& app, const std::string& path) {
+    ObjMesh mesh;
+    std::string error;
+
+    if (!ObjLoader::load(path, mesh, error)) {
+        m_shape3D.objStatus = "Load failed: " + error;
+        setStatus("OBJ load failed: " + error, true);
+        return;
+    }
+
+    m_shape3D.objSourceEdges = mesh.edges.size();
+    ObjLoader::decimate(mesh, static_cast<size_t>(m_shape3D.objMaxEdges));
+
+    m_shape3D.objMesh = std::move(mesh);
+    m_shape3D.objPath = path;
+
+    char summary[256];
+    if (m_shape3D.objMesh.edges.size() < m_shape3D.objSourceEdges) {
+        snprintf(summary, sizeof(summary),
+                 "%zu verts, %zu faces, %zu of %zu edges",
+                 m_shape3D.objMesh.vertices.size(), m_shape3D.objMesh.faceCount,
+                 m_shape3D.objMesh.edges.size(), m_shape3D.objSourceEdges);
+    } else {
+        snprintf(summary, sizeof(summary),
+                 "%zu verts, %zu faces, %zu edges",
+                 m_shape3D.objMesh.vertices.size(), m_shape3D.objMesh.faceCount,
+                 m_shape3D.objMesh.edges.size());
+    }
+    m_shape3D.objStatus = summary;
+
+    // Loading a model makes it the active shape.
+    m_shape3D.shapeType = Shape3DState::ShapeType::ObjModel;
+    m_3dShapeActive = true;
+    generate3DShapePattern(app);
+
+    setStatus("Loaded " + m_shape3D.objMesh.name + " (" + m_shape3D.objStatus + ")");
+}
+
 void UIManager::render3DShapeGenerator(App& app) {
     // Position: Floating, upper center
     ImGui::SetNextWindowPos(ImVec2(400, 100), ImGuiCond_FirstUseEver);
@@ -1927,7 +2193,7 @@ void UIManager::render3DShapeGenerator(App& app) {
         "Sphere", "Torus", "Cylinder", "Cone", "Pyramid", "Prism",
         "3D Spiral", "Double Helix", "Trefoil Knot",
         "Mobius Strip", "Klein Bottle", "Spring", "3D Star",
-        "3D Text"
+        "3D Text", "OBJ Model"
     };
     int shapeIdx = static_cast<int>(m_shape3D.shapeType);
     if (ImGui::Combo("Shape", &shapeIdx, shapes, IM_ARRAYSIZE(shapes))) {
@@ -2008,6 +2274,50 @@ void UIManager::render3DShapeGenerator(App& app) {
         rotChanged |= ImGui::Checkbox("Connect Faces", &m_shape3D.textConnectFaces);
 
         ImGui::TextDisabled("A-Z, 0-9, punctuation supported");
+    }
+
+    if (m_shape3D.shapeType == Shape3DState::ShapeType::ObjModel) {
+        ImGui::Separator();
+        ImGui::Text("OBJ Model");
+
+        if (ImGui::Button("Browse...", ImVec2(100, 0))) {
+            auto selection = pfd::open_file(
+                "Load OBJ Model",
+                "",
+                { "Wavefront OBJ", "*.obj", "All Files", "*" }
+            ).result();
+
+            if (!selection.empty()) {
+                loadObjModel(app, selection[0]);
+            }
+        }
+
+        if (!m_shape3D.objPath.empty()) {
+            ImGui::SameLine();
+            if (ImGui::Button("Reload", ImVec2(-1, 0))) {
+                loadObjModel(app, m_shape3D.objPath);
+            }
+        }
+
+        if (m_shape3D.objMesh.empty()) {
+            ImGui::TextDisabled("No model loaded");
+        } else {
+            ImGui::TextWrapped("%s", m_shape3D.objMesh.name.c_str());
+        }
+
+        if (!m_shape3D.objStatus.empty()) {
+            ImGui::TextDisabled("%s", m_shape3D.objStatus.c_str());
+        }
+
+        // Dense meshes trace slowly; the cap keeps playback responsive.
+        ImGui::SliderInt("Max Edges", &m_shape3D.objMaxEdges, 100, 20000);
+        // Apply on release only - re-reading the file every drag frame would
+        // stall on large models. Re-loading from disk (rather than thinning the
+        // current mesh again) keeps decimation based on the full edge list.
+        if (ImGui::IsItemDeactivatedAfterEdit() && !m_shape3D.objPath.empty()) {
+            loadObjModel(app, m_shape3D.objPath);
+        }
+        ImGui::TextDisabled("Model is auto-centered and scaled to fit");
     }
 
     ImGui::Separator();

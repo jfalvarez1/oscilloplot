@@ -44,25 +44,19 @@ bool App::init() {
     m_audioEngine->setPatternRepeats(m_patternRepeats);
 
     m_running = true;
+    m_initialized = true;
     return true;
 }
 
-bool App::initSDL() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
-        std::cerr << "SDL_Init error: " << SDL_GetError() << std::endl;
-        return false;
-    }
-
-    // OpenGL attributes
+bool App::tryCreateContext(int major, int minor, int profile, const char* glslVersion) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, profile);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-    // Create window
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
     m_window = SDL_CreateWindow(
         "Oscilloplot - XY Audio Generator",
@@ -74,26 +68,80 @@ bool App::initSDL() {
     );
 
     if (!m_window) {
-        std::cerr << "SDL_CreateWindow error: " << SDL_GetError() << std::endl;
         return false;
     }
 
+    m_glContext = SDL_GL_CreateContext(m_window);
+    if (!m_glContext) {
+        SDL_DestroyWindow(m_window);
+        m_window = nullptr;
+        return false;
+    }
+
+    m_glslVersion = glslVersion;
     return true;
 }
 
-bool App::initOpenGL() {
-    m_glContext = SDL_GL_CreateContext(m_window);
-    if (!m_glContext) {
-        std::cerr << "SDL_GL_CreateContext error: " << SDL_GetError() << std::endl;
+bool App::initSDL() {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
+        std::cerr << "SDL_Init error: " << SDL_GetError() << std::endl;
         return false;
     }
 
-    SDL_GL_MakeCurrent(m_window, m_glContext);
-    SDL_GL_SetSwapInterval(1); // VSync
+    // Try progressively older OpenGL configurations. Requiring 3.3 Core
+    // outright turns away drivers that only advertise 3.0/3.2, which is common
+    // on older integrated graphics still perfectly able to run this UI.
+    //
+    // OpenGL 3.0 is a hard floor, not an arbitrary one: ImGui's OpenGL3 backend
+    // calls glGenVertexArrays unconditionally on desktop builds, and vertex
+    // array objects only became core in 3.0. A 2.1 context would pass
+    // ImGui_ImplOpenGL3_Init and then dereference a null function pointer on
+    // the first frame, so it is deliberately not offered.
+    struct GLConfig {
+        int major;
+        int minor;
+        int profile;
+        const char* glsl;
+        const char* label;
+    };
 
-    // Load OpenGL functions using GLAD or similar
-    // For simplicity, we'll use SDL's built-in GL loading
-    // In production, use glad or glew
+    const GLConfig configs[] = {
+        {3, 3, SDL_GL_CONTEXT_PROFILE_CORE,          "#version 330", "OpenGL 3.3 Core"},
+        {3, 2, SDL_GL_CONTEXT_PROFILE_CORE,          "#version 150", "OpenGL 3.2 Core"},
+        {3, 0, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY, "#version 130", "OpenGL 3.0"},
+    };
+
+    for (const auto& cfg : configs) {
+        if (tryCreateContext(cfg.major, cfg.minor, cfg.profile, cfg.glsl)) {
+            std::cerr << "Using " << cfg.label << std::endl;
+            return true;
+        }
+    }
+
+    // Nothing usable. This is a GUI-subsystem binary, so a message on stderr
+    // would go nowhere - tell the user in a dialog why it is not starting.
+    std::cerr << "Could not create any OpenGL context: " << SDL_GetError() << std::endl;
+    SDL_ShowSimpleMessageBox(
+        SDL_MESSAGEBOX_ERROR,
+        "Oscilloplot - OpenGL 3.0 required",
+        "This machine does not provide OpenGL 3.0 or newer.\n\n"
+        "That usually means no graphics driver is installed and Windows is "
+        "falling back to the Basic Display Adapter, which only offers "
+        "OpenGL 1.1. Installing the GPU vendor's driver resolves it.\n\n"
+        "Remote Desktop sessions and some virtual machines have the same "
+        "limitation.",
+        nullptr);
+    return false;
+}
+
+bool App::initOpenGL() {
+    SDL_GL_MakeCurrent(m_window, m_glContext);
+
+    // VSync where supported; an unaccelerated driver may refuse it, which is
+    // not fatal - the frame loop just runs uncapped.
+    if (SDL_GL_SetSwapInterval(1) != 0) {
+        SDL_GL_SetSwapInterval(0);
+    }
 
     return true;
 }
@@ -115,17 +163,22 @@ bool App::initImGui() {
 
     // Initialize backends
     ImGui_ImplSDL2_InitForOpenGL(m_window, m_glContext);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    ImGui_ImplOpenGL3_Init(m_glslVersion);
 
     return true;
 }
 
 bool App::initAudio() {
     m_audioEngine = std::make_unique<AudioEngine>();
-    if (!m_audioEngine->init()) {
-        std::cerr << "Failed to initialize audio engine" << std::endl;
-        return false;
+
+    // A machine with no output device - a VM, an RDP session, or a desktop with
+    // headphones unplugged and no other endpoint - should still open so the
+    // visual side and file export remain usable. Report and carry on.
+    m_audioAvailable = m_audioEngine->init();
+    if (!m_audioAvailable) {
+        std::cerr << "Audio unavailable - continuing without playback" << std::endl;
     }
+
     return true;
 }
 
@@ -272,6 +325,8 @@ void App::setPlaying(bool playing) {
         m_audioEngine->setPatternRepeats(m_patternRepeats);
         m_audioEngine->setPattern(*m_pattern);
         m_audioEngine->play();
+        // play() is a no-op without an output device; don't claim to be playing
+        m_isPlaying = m_audioEngine->isPlaying();
     } else {
         m_audioEngine->stop();
     }
@@ -286,6 +341,12 @@ const EffectParams& App::getEffects() const {
 }
 
 void App::shutdown() {
+    // main() calls this explicitly and ~App() calls it again. Without a guard
+    // the second pass tears down ImGui a second time and faults on the
+    // already-destroyed context.
+    if (!m_initialized) return;
+    m_initialized = false;
+
     if (m_audioEngine) {
         m_audioEngine->shutdown();
         m_audioEngine.reset();

@@ -1616,15 +1616,16 @@ void ImageVectorizer::applyRegionalProcessing(const VectorizerParams& params) {
         for (int x = 1; x < w - 1; ++x) {
             const int idx = y * w + x;
 
-            // Adjust thresholds based on importance
-            float importance = m_importanceMask[idx] / 255.0f;
+            // Lower thresholds for important regions (face)
+            // Higher thresholds for background
+            // NOTE: m_importanceMask is built but does not feed into the
+            // threshold yet - only the face/background split is applied.
             float faceBoost = (m_faceMask[idx] > 128) ? params.faceEmphasis : 1.0f;
             float bgSimplify = (m_faceMask[idx] < 64) ? params.backgroundSimplify : 1.0f;
 
-            // Lower thresholds for important regions (face)
-            // Higher thresholds for background
+            // Seeding pass promotes strong edges only; the low threshold is
+            // applied during hysteresis tracing below.
             float localHighThresh = params.cannyHigh / faceBoost * bgSimplify;
-            float localLowThresh = params.cannyLow / faceBoost * bgSimplify;
 
             if (m_edgeData[idx] >= static_cast<uint8_t>(localHighThresh)) {
                 result[idx] = 255;
@@ -1646,7 +1647,6 @@ void ImageVectorizer::applyRegionalProcessing(const VectorizerParams& params) {
         const int y = idx / w;
 
         // Adjust low threshold based on region
-        float importance = m_importanceMask[idx] / 255.0f;
         float faceBoost = (m_faceMask[idx] > 128) ? params.faceEmphasis : 1.0f;
         float bgSimplify = (m_faceMask[idx] < 64) ? params.backgroundSimplify : 1.0f;
         float localLowThresh = params.cannyLow / faceBoost * bgSimplify;
