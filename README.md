@@ -2,9 +2,37 @@
 
 A high-performance, cross-platform oscilloscope XY audio generator written in C++.
 
+![Oscilloplot overview - rotating 3D torus on the phosphor scope](docs/screenshots/01-overview.png)
+
 ## Download
 
 **[Download Latest Release (Windows x64)](https://github.com/zerav/oscilloplot/releases/latest)** - No installation required, just extract and run!
+
+## Screenshots
+
+**Live pattern generators** - every parameter applies instantly. Here a
+19-turn Archimedean spiral being shaped with the Turns slider:
+
+![Generators panel with live Archimedean spiral](docs/screenshots/02-generators.png)
+
+**3D wireframe shapes** - 20 shape sources including a rotating trefoil knot,
+projected to XY in real time:
+
+![Trefoil knot rotating in 3D](docs/screenshots/03-3d-shapes.png)
+
+**Drawing canvas** - freehand strokes become oscilloscope patterns, with
+per-stroke undo:
+
+![Smiley face drawn on the canvas](docs/screenshots/04-drawing-canvas.png)
+
+**Sequencer** - chain patterns into a timed sequence; here mid-playback on
+step 2 with the phosphor beam tracing a circle:
+
+![Sequencer playing a three-step sequence](docs/screenshots/05-sequencer.png)
+
+**Image Vectorizer** - 13 detection modes turn images into traceable outlines:
+
+![Star logo vectorized to an oscilloscope path](docs/screenshots/06-vectorizer.png)
 
 ## Features
 
