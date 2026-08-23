@@ -276,6 +276,25 @@ private:
     void placeWindow(float x, float y, float w, float h);  // viewport fractions
     int m_layoutResetFrames = 0;   // >0: re-apply default layout this frame
 
+    // Which generator's parameters are live-editable. Lives on the object (not
+    // as a function static) so every other pattern source can clear it - the
+    // Points slider would otherwise regenerate over a loaded/drawn/captured
+    // pattern the next time it moved.
+    enum class ActiveGen {
+        None, Circle, Ellipse, Sine, Lissajous, Star, Flower, Rose,
+        ArchSpiral, LogSpiral, Helix, Trefoil, TorusKnot,
+        Butterfly, Cardioid, Deltoid, Hypotrochoid, Epitrochoid,
+        Figure8, Infinity, Heart, Square, Sawtooth, Triangle
+    };
+    ActiveGen m_activeGen = ActiveGen::None;
+
+    // Call from any non-generator pattern source before it installs a pattern.
+    void claimPatternSource() {
+        m_activeGen = ActiveGen::None;
+        m_3dShapeActive = false;
+        m_shape3D.animate = false;
+    }
+
     // Sequencer
     void renderSequencer(App& app);
     void updateSequencer(App& app);     // Per-frame step advancement

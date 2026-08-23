@@ -49,8 +49,7 @@ bool App::init() {
     m_audioEngine->setPatternRepeats(m_patternRepeats);
 
     m_running = true;
-    m_initialized = true;
-    return true;
+    return true;   // m_initialized was armed by initSDL()
 }
 
 bool App::tryCreateContext(int major, int minor, int profile, const char* glslVersion) {
@@ -109,6 +108,12 @@ bool App::initSDL() {
         std::cerr << "SDL_Init error: " << SDL_GetError() << std::endl;
         return false;
     }
+
+    // Anything created from here on must be torn down even if a later init
+    // step fails, so arm the shutdown guard now rather than at the end of
+    // init(). Otherwise an aborted startup (e.g. no usable OpenGL context)
+    // skips SDL_Quit and the ImGui teardown entirely.
+    m_initialized = true;
 
     // Try progressively older OpenGL configurations. Requiring 3.3 Core
     // outright turns away drivers that only advertise 3.0/3.2, which is common

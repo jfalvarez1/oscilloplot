@@ -229,8 +229,7 @@ void UIManager::doLoadPattern(App& app) {
 
     // A loaded pattern becomes the active source; stop the 3D animation from
     // overwriting it on the next frame.
-    m_3dShapeActive = false;
-    m_shape3D.animate = false;
+    claimPatternSource();
 
     Pattern& pattern = app.getPattern();
     pattern = loaded;
@@ -490,8 +489,15 @@ void UIManager::sequencerStart(App& app) {
         return;
     }
     // The sequence owns the pattern now; stop other sources overwriting it.
-    m_3dShapeActive = false;
-    m_shape3D.animate = false;
+    claimPatternSource();
+
+    // Step timing is driven by the engine's pattern-cycle counter, which only
+    // advances while audio is streaming. With no output device the sequence
+    // would flash step 0 for one frame and silently stop, so say why.
+    if (!app.isAudioAvailable()) {
+        setStatus("Sequencer needs an audio output device", true);
+        return;
+    }
 
     m_sequencer.playing = true;
     if (!app.isPlaying()) {
@@ -759,8 +765,7 @@ void UIManager::renderSequencer(App& app) {
         // Preview loads the step's pattern without starting the sequence
         if (ImGui::SmallButton("View")) {
             if (!seqPlaying) {
-                m_3dShapeActive = false;
-                m_shape3D.animate = false;
+                claimPatternSource();
                 app.getPattern() = step.pattern;
                 app.getAudioEngine().setPattern(app.getPattern());
             }
@@ -1488,13 +1493,7 @@ void UIManager::renderGeneratorsPanel(App& app) {
     // any change to its parameters (or the shared Points slider) regenerates
     // the pattern immediately, so sliders give live feedback on the scope.
     //--------------------------------------------------------------------------
-    enum class Gen {
-        None, Circle, Ellipse, Sine, Lissajous, Star, Flower, Rose,
-        ArchSpiral, LogSpiral, Helix, Trefoil, TorusKnot,
-        Butterfly, Cardioid, Deltoid, Hypotrochoid, Epitrochoid,
-        Figure8, Infinity, Heart, Square, Sawtooth, Triangle
-    };
-    static Gen activeGen = Gen::None;
+    using Gen = ActiveGen;
 
     // All generator parameters (declared up front so the dispatcher sees them)
     static int numPoints = 500;
@@ -1544,19 +1543,19 @@ void UIManager::renderGeneratorsPanel(App& app) {
             case Gen::Sawtooth:  generators::generateSawtoothWave(p, numPoints, waveFreq); break;
             case Gen::Triangle:  generators::generateTriangleWave(p, numPoints, waveFreq); break;
         }
-        activeGen = id;
+        m_activeGen = id;
         m_3dShapeActive = false;  // Stop 3D animation from overwriting
         app.getAudioEngine().setPattern(p);
     };
 
     // Re-run the active generator when one of its parameters changed.
     auto liveUpdate = [&](bool changed, Gen id) {
-        if (changed && activeGen == id) runGenerator(id);
+        if (changed && m_activeGen == id) runGenerator(id);
     };
 
     // Shared parameter: affects whichever generator is active
-    if (ImGui::SliderInt("Points", &numPoints, 100, 5000) && activeGen != Gen::None) {
-        runGenerator(activeGen);
+    if (ImGui::SliderInt("Points", &numPoints, 100, 5000) && m_activeGen != Gen::None) {
+        runGenerator(m_activeGen);
     }
 
     //==========================================================================
@@ -1739,9 +1738,9 @@ void UIManager::renderGeneratorsPanel(App& app) {
         ImGui::SetNextItemWidth(120);
         // Frequency drives whichever of the three waveforms was last generated
         if (ImGui::SliderFloat("Frequency##wave", &waveFreq, 1.0f, 10.0f)) {
-            if (activeGen == Gen::Square || activeGen == Gen::Sawtooth ||
-                activeGen == Gen::Triangle) {
-                runGenerator(activeGen);
+            if (m_activeGen == Gen::Square || m_activeGen == Gen::Sawtooth ||
+                m_activeGen == Gen::Triangle) {
+                runGenerator(m_activeGen);
             }
         }
 
@@ -1782,8 +1781,7 @@ void UIManager::renderGeneratorsPanel(App& app) {
             pattern.x.push_back(x * 0.9f);
             pattern.y.push_back(y * 0.9f);
         }
-        activeGen = Gen::None;    // Random result has no live parameters
-        m_3dShapeActive = false;
+        claimPatternSource();       // Random result has no live parameters
         app.getAudioEngine().setPattern(pattern);
     }
 
@@ -1795,7 +1793,7 @@ void UIManager::renderGeneratorsPanel(App& app) {
 //==============================================================================
 
 void UIManager::generateHarmonicsPattern(App& app) {
-    m_3dShapeActive = false;  // Stop 3D animation from overwriting
+    claimPatternSource();  // Stop 3D/generator sources overwriting it
     Pattern& pattern = app.getPattern();
     pattern.clear();
 
@@ -2164,7 +2162,7 @@ void UIManager::renderDrawingCanvas(App& app) {
         m_drawing.isDrawing = false;
         // Auto-update pattern when stroke is finished
         if (m_drawing.pointsX.size() >= 2) {
-            m_3dShapeActive = false;  // Stop 3D animation from overwriting
+            claimPatternSource();  // Stop 3D/generator sources overwriting it
             Pattern& pattern = app.getPattern();
             pattern.clear();
             pattern.x = m_drawing.pointsX;
@@ -2253,7 +2251,7 @@ void UIManager::renderDrawingCanvas(App& app) {
 
     if (ImGui::Button("Use as Pattern", ImVec2(-1, 30))) {
         if (m_drawing.pointsX.size() >= 2) {
-            m_3dShapeActive = false;  // Stop 3D animation from overwriting
+            claimPatternSource();  // Stop 3D/generator sources overwriting it
             Pattern& pattern = app.getPattern();
             pattern.clear();
             pattern.x = m_drawing.pointsX;
@@ -2833,8 +2831,7 @@ void UIManager::render3DShapeGenerator(App& app) {
             } else {
                 // The baked result replaces the live pattern; stop the
                 // animation from overwriting it on the next frame.
-                m_shape3D.animate = false;
-                m_3dShapeActive = false;
+                claimPatternSource();
                 app.getPattern() = baked;
                 app.getAudioEngine().setPattern(app.getPattern());
 
@@ -3507,7 +3504,7 @@ void UIManager::renderImageVectorizer(App& app) {
             pattern.push_back(previewX[i], previewY[i]);
         }
         app.getAudioEngine().setPattern(pattern);
-        m_3dShapeActive = false;  // Stop 3D animation from overwriting
+        claimPatternSource();  // Stop 3D/generator sources overwriting it
         statusMessage = "Pattern applied to oscilloscope!";
     }
     ImGui::PopStyleColor(2);
