@@ -13,7 +13,7 @@ void TremoloEffect::process(Pattern& pattern, float time, float deltaTime) {
 
     if (pattern.empty()) return;
 
-    float phase = time * m_rate * 2.0f * M_PI;
+    float phase = time * m_rate * 2.0f * static_cast<float>(M_PI);
     float modValue;
 
     switch (m_waveform) {

@@ -254,7 +254,7 @@ void generateButterfly(Pattern& pattern, int numPoints) {
     // First pass to find max for normalization
     for (int i = 0; i < numPoints; ++i) {
         float t = static_cast<float>(i) / numPoints * 12.0f * static_cast<float>(M_PI);
-        float r = std::exp(std::cos(t)) - 2.0f * std::cos(4.0f * t) - std::pow(std::sin(t / 12.0f), 5);
+        float r = std::exp(std::cos(t)) - 2.0f * std::cos(4.0f * t) - std::pow(std::sin(t / 12.0f), 5.0f);
         float x = std::sin(t) * r;
         float y = std::cos(t) * r;
         float val = std::max(std::abs(x), std::abs(y));
@@ -263,7 +263,7 @@ void generateButterfly(Pattern& pattern, int numPoints) {
 
     for (int i = 0; i < numPoints; ++i) {
         float t = static_cast<float>(i) / numPoints * 12.0f * static_cast<float>(M_PI);
-        float r = std::exp(std::cos(t)) - 2.0f * std::cos(4.0f * t) - std::pow(std::sin(t / 12.0f), 5);
+        float r = std::exp(std::cos(t)) - 2.0f * std::cos(4.0f * t) - std::pow(std::sin(t / 12.0f), 5.0f);
         pattern.x[i] = std::sin(t) * r / maxVal;
         pattern.y[i] = std::cos(t) * r / maxVal;
     }
@@ -321,7 +321,7 @@ void generateHeart(Pattern& pattern, int numPoints) {
         float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
 
         // Parametric heart curve
-        pattern.x[i] = 16.0f * std::pow(std::sin(t), 3) / 17.0f;
+        pattern.x[i] = 16.0f * std::pow(std::sin(t), 3.0f) / 17.0f;
         pattern.y[i] = (13.0f * std::cos(t) - 5.0f * std::cos(2.0f*t) - 2.0f * std::cos(3.0f*t) - std::cos(4.0f*t)) / 17.0f;
     }
 }

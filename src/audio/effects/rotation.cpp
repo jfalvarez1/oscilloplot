@@ -30,7 +30,7 @@ void RotationEffect::process(Pattern& pattern, float time, float deltaTime) {
             return;
     }
 
-    float angleRad = angleDeg * M_PI / 180.0f;
+    float angleRad = angleDeg * static_cast<float>(M_PI) / 180.0f;
     float cosA = std::cos(angleRad);
     float sinA = std::sin(angleRad);
 

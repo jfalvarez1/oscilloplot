@@ -15,7 +15,7 @@ void generateRandomHarmonics(Pattern& pattern, int numPoints,
 
     std::mt19937 rng(seed == 0 ? std::random_device{}() : seed);
     std::uniform_real_distribution<float> ampDist(0.1f, 1.0f);
-    std::uniform_real_distribution<float> phaseDist(0.0f, 2.0f * M_PI);
+    std::uniform_real_distribution<float> phaseDist(0.0f, 2.0f * static_cast<float>(M_PI));
     std::uniform_int_distribution<int> harmDist(1, 8);
 
     struct RandomHarmonic {
@@ -34,7 +34,7 @@ void generateRandomHarmonics(Pattern& pattern, int numPoints,
     }
 
     for (int i = 0; i < numPoints; ++i) {
-        float t = static_cast<float>(i) / numPoints * 2.0f * M_PI;
+        float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
         float x = 0.0f;
         float y = 0.0f;
 

@@ -1538,8 +1538,8 @@ void ImageVectorizer::createFaceMask() {
         int headRight = std::min(w - 1, face.x + face.width + earExtension);
 
         // Create elliptical mask for face region
-        float faceCenterX = face.centerX;
-        float faceCenterY = face.centerY;
+        float faceCenterX = static_cast<float>(face.centerX);
+        float faceCenterY = static_cast<float>(face.centerY);
         float faceRadiusX = face.width * 0.6f;
         float faceRadiusY = face.height * 0.6f;
 
@@ -1618,14 +1618,18 @@ void ImageVectorizer::applyRegionalProcessing(const VectorizerParams& params) {
 
             // Lower thresholds for important regions (face)
             // Higher thresholds for background
-            // NOTE: m_importanceMask is built but does not feed into the
-            // threshold yet - only the face/background split is applied.
             float faceBoost = (m_faceMask[idx] > 128) ? params.faceEmphasis : 1.0f;
             float bgSimplify = (m_faceMask[idx] < 64) ? params.backgroundSimplify : 1.0f;
 
+            // Importance mask (skin/detail heuristics): scale the threshold
+            // down by up to detailEmphasis where the mask is strong, so more
+            // detail survives in regions the mask marks as interesting.
+            float importance = m_importanceMask[idx] / 255.0f;
+            float detailScale = 1.0f - params.detailEmphasis * importance * 0.6f;
+
             // Seeding pass promotes strong edges only; the low threshold is
             // applied during hysteresis tracing below.
-            float localHighThresh = params.cannyHigh / faceBoost * bgSimplify;
+            float localHighThresh = params.cannyHigh / faceBoost * bgSimplify * detailScale;
 
             if (m_edgeData[idx] >= static_cast<uint8_t>(localHighThresh)) {
                 result[idx] = 255;
@@ -1649,7 +1653,9 @@ void ImageVectorizer::applyRegionalProcessing(const VectorizerParams& params) {
         // Adjust low threshold based on region
         float faceBoost = (m_faceMask[idx] > 128) ? params.faceEmphasis : 1.0f;
         float bgSimplify = (m_faceMask[idx] < 64) ? params.backgroundSimplify : 1.0f;
-        float localLowThresh = params.cannyLow / faceBoost * bgSimplify;
+        float importance = m_importanceMask[idx] / 255.0f;
+        float detailScale = 1.0f - params.detailEmphasis * importance * 0.6f;
+        float localLowThresh = params.cannyLow / faceBoost * bgSimplify * detailScale;
 
         for (int i = 0; i < 8; ++i) {
             const int nx = x + dx[i];

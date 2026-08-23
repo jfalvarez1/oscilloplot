@@ -22,6 +22,10 @@
 #include <set>
 #include <cfloat>
 
+#ifndef OSCILLOPLOT_VERSION
+#define OSCILLOPLOT_VERSION "dev"
+#endif
+
 namespace oscilloplot {
 
 //==============================================================================
@@ -355,6 +359,13 @@ void UIManager::renderMenuBar(App& app) {
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Help")) {
+            if (ImGui::MenuItem("About Oscilloplot")) {
+                m_showAbout = true;
+            }
+            ImGui::EndMenu();
+        }
+
         // Persistent warning when the machine has no usable audio output
         if (!app.isAudioAvailable()) {
             ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "  [No audio device - preview only]");
@@ -391,6 +402,23 @@ void UIManager::renderMenuBar(App& app) {
         if (ImGui::IsKeyPressed(ImGuiKey_O, false)) doLoadPattern(app);
         if (ImGui::IsKeyPressed(ImGuiKey_S, false)) doSavePattern(app);
         if (ImGui::IsKeyPressed(ImGuiKey_E, false)) doExportWav(app);
+    }
+
+    if (m_showAbout) {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                                ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::Begin("About Oscilloplot", &m_showAbout,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
+        ImGui::Text("Oscilloplot %s", OSCILLOPLOT_VERSION);
+        ImGui::TextDisabled("XY oscilloscope audio generator");
+        ImGui::Separator();
+        ImGui::Text("Renderer: %s", (const char*)glGetString(GL_VERSION));
+        ImGui::Text("Built %s", __DATE__);
+        ImGui::Separator();
+        ImGui::TextDisabled("MIT License");
+        ImGui::TextDisabled("github.com/jfalvarez1/oscilloplot");
+        if (ImGui::Button("Close", ImVec2(-1, 0))) m_showAbout = false;
+        ImGui::End();
     }
 }
 
@@ -1674,6 +1702,28 @@ void UIManager::renderDrawingCanvas(App& app) {
     ImGui::Separator();
     ImGui::Text("Points: %zu  Strokes: %zu", m_drawing.pointsX.size(), m_drawing.strokeStarts.size());
 
+    // Undo removes the most recent stroke; the stroke boundaries are already
+    // tracked for rendering, so undo is just truncating to the last one.
+    bool undoRequested = false;
+    bool canUndo = !m_drawing.strokeStarts.empty();
+    if (!canUndo) ImGui::BeginDisabled();
+    if (ImGui::Button("Undo Stroke (Ctrl+Z)", ImVec2(-1, 0))) {
+        undoRequested = true;
+    }
+    if (!canUndo) ImGui::EndDisabled();
+
+    if (canUndo && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+        undoRequested = true;
+    }
+
+    if (undoRequested && canUndo) {
+        size_t cut = m_drawing.strokeStarts.back();
+        m_drawing.strokeStarts.pop_back();
+        m_drawing.pointsX.resize(cut);
+        m_drawing.pointsY.resize(cut);
+    }
+
     if (ImGui::Button("Clear Canvas", ImVec2(-1, 0))) {
         m_drawing.pointsX.clear();
         m_drawing.pointsY.clear();
@@ -1699,7 +1749,14 @@ void UIManager::renderDrawingCanvas(App& app) {
 //==============================================================================
 
 void UIManager::generate3DShapePattern(App& app) {
-    Pattern& pattern = app.getPattern();
+    buildShapeFrame(app.getPattern());
+    app.getAudioEngine().setPattern(app.getPattern());
+}
+
+// Build one projected frame of the current 3D shape at the current rotation
+// into `pattern`. Pure geometry - no audio engine interaction - so the bake
+// path can call it repeatedly at stepped rotations.
+void UIManager::buildShapeFrame(Pattern& pattern) {
     pattern.clear();
 
     std::vector<Vec3> vertices;
@@ -2087,14 +2144,12 @@ void UIManager::generate3DShapePattern(App& app) {
                 }
             }
 
-            app.getAudioEngine().setPattern(pattern);
             return;  // Early return since we handle pattern directly
         }
         case Shape3DState::ShapeType::ObjModel: {
             // Nothing loaded yet - leave the pattern empty rather than
             // silently falling back to another shape.
             if (m_shape3D.objMesh.empty()) {
-                app.getAudioEngine().setPattern(pattern);
                 return;
             }
 
@@ -2108,7 +2163,6 @@ void UIManager::generate3DShapePattern(App& app) {
     }
 
     if (vertices.empty() || edges.empty()) {
-        app.getAudioEngine().setPattern(pattern);
         return;
     }
 
@@ -2136,8 +2190,6 @@ void UIManager::generate3DShapePattern(App& app) {
             pattern.y.push_back(y1 * (1 - t) + y2 * t);
         }
     }
-
-    app.getAudioEngine().setPattern(pattern);
 }
 
 void UIManager::loadObjModel(App& app, const std::string& path) {
@@ -2216,6 +2268,71 @@ void UIManager::render3DShapeGenerator(App& app) {
         ImGui::SliderFloat("X Speed", &m_shape3D.rotationSpeedX, -5.0f, 5.0f);
         ImGui::SliderFloat("Y Speed", &m_shape3D.rotationSpeedY, -5.0f, 5.0f);
         ImGui::SliderFloat("Z Speed", &m_shape3D.rotationSpeedZ, -5.0f, 5.0f);
+    }
+
+    // Live animation regenerates the pattern per UI frame, so a WAV export
+    // only ever captures one orientation. Baking freezes N rotation steps into
+    // a single long pattern that plays (and exports) as a rotating shape.
+    if (ImGui::TreeNode("Bake Rotation")) {
+        ImGui::SliderInt("Frames", &m_shape3D.bakeFrames, 2, 200);
+        ImGui::TextDisabled("Each frame advances by the animation speeds");
+
+        if (ImGui::Button("Bake to Pattern", ImVec2(-1, 30))) {
+            float rx0 = m_shape3D.rotationX;
+            float ry0 = m_shape3D.rotationY;
+            float rz0 = m_shape3D.rotationZ;
+
+            Pattern baked;
+            Pattern frame;
+            bool truncated = false;
+            int framesDone = 0;
+
+            for (int f = 0; f < m_shape3D.bakeFrames; ++f) {
+                buildShapeFrame(frame);
+                if (baked.size() + frame.size() > AudioEngine::MAX_PATTERN_SIZE) {
+                    truncated = true;
+                    break;
+                }
+                baked.x.insert(baked.x.end(), frame.x.begin(), frame.x.end());
+                baked.y.insert(baked.y.end(), frame.y.begin(), frame.y.end());
+                framesDone++;
+
+                m_shape3D.rotationX += m_shape3D.rotationSpeedX;
+                m_shape3D.rotationY += m_shape3D.rotationSpeedY;
+                m_shape3D.rotationZ += m_shape3D.rotationSpeedZ;
+            }
+
+            // Restore so baking is repeatable from the same starting pose
+            m_shape3D.rotationX = rx0;
+            m_shape3D.rotationY = ry0;
+            m_shape3D.rotationZ = rz0;
+
+            if (baked.empty()) {
+                setStatus("Nothing to bake - shape produced no points", true);
+            } else {
+                // The baked result replaces the live pattern; stop the
+                // animation from overwriting it on the next frame.
+                m_shape3D.animate = false;
+                m_3dShapeActive = false;
+                app.getPattern() = baked;
+                app.getAudioEngine().setPattern(app.getPattern());
+
+                char msg[160];
+                if (truncated) {
+                    snprintf(msg, sizeof(msg),
+                             "Baked %d of %d frames (%zu points - buffer full)",
+                             framesDone, m_shape3D.bakeFrames, baked.size());
+                } else {
+                    snprintf(msg, sizeof(msg), "Baked %d frames (%zu points)",
+                             framesDone, baked.size());
+                }
+                setStatus(msg, truncated);
+            }
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Freezes the rotation into one long pattern so \nWAV export and playback actually rotate.");
+        }
+        ImGui::TreePop();
     }
 
     ImGui::Separator();
@@ -2761,6 +2878,10 @@ void UIManager::renderImageVectorizer(App& app) {
                 ImGui::Text("Regional Processing:");
                 ImGui::SliderFloat("Face Emphasis", &m_vectorizerParams.faceEmphasis, 1.0f, 3.0f, "%.1f");
                 ImGui::SliderFloat("Background Simplify", &m_vectorizerParams.backgroundSimplify, 1.0f, 5.0f, "%.1f");
+                ImGui::SliderFloat("Detail Emphasis", &m_vectorizerParams.detailEmphasis, 0.0f, 1.0f, "%.2f");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Keeps more edges in regions the importance mask \nmarks as interesting (skin, detected detail). 0 = off.");
+                }
                 ImGui::Separator();
                 ImGui::SliderFloat("Low Threshold", &m_vectorizerParams.cannyLow, 10.0f, 150.0f, "%.0f");
                 ImGui::SliderFloat("High Threshold", &m_vectorizerParams.cannyHigh, 30.0f, 300.0f, "%.0f");

@@ -70,6 +70,7 @@ struct VectorizerParams {
     float skinSensitivity = 1.0f;     // Skin detection sensitivity (0.5-2.0)
     float faceEmphasis = 1.5f;        // How much to emphasize face region (1.0-3.0)
     float backgroundSimplify = 2.0f;  // Background simplification factor (1.0-5.0)
+    float detailEmphasis = 0.5f;      // How much the importance mask lowers thresholds (0=off, 1=full)
     bool detectMultipleFaces = true;  // Detect all faces or just the largest
     float minFaceRatio = 0.05f;       // Minimum face size as ratio of image (0.02-0.2)
 

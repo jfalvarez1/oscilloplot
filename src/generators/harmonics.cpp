@@ -14,7 +14,7 @@ void generateHarmonics(Pattern& pattern, int numPoints,
     pattern.resize(numPoints);
 
     for (int i = 0; i < numPoints; ++i) {
-        float t = static_cast<float>(i) / numPoints * 2.0f * M_PI;
+        float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
         float x = 0.0f;
         float y = 0.0f;
 
@@ -37,7 +37,7 @@ void generateXYHarmonics(Pattern& pattern, int numPoints,
     pattern.resize(numPoints);
 
     for (int i = 0; i < numPoints; ++i) {
-        float t = static_cast<float>(i) / numPoints * 2.0f * M_PI;
+        float t = static_cast<float>(i) / numPoints * 2.0f * static_cast<float>(M_PI);
         float x = 0.0f;
         float y = 0.0f;
 

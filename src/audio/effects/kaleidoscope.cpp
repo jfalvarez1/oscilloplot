@@ -24,7 +24,7 @@ void KaleidoscopeEffect::process(Pattern& pattern, float time, float deltaTime) 
     // Expand pattern to include all segments
     pattern.resize(origSize * m_segments);
 
-    float segmentAngle = 2.0f * M_PI / m_segments;
+    float segmentAngle = 2.0f * static_cast<float>(M_PI) / static_cast<float>(m_segments);
 
     for (int seg = 0; seg < m_segments; ++seg) {
         float angle = seg * segmentAngle + m_rotation;

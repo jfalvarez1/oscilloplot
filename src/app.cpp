@@ -11,6 +11,11 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#include <SDL_syswm.h>
+#endif
+
+#ifndef OSCILLOPLOT_VERSION
+#define OSCILLOPLOT_VERSION "dev"
 #endif
 #include <GL/gl.h>
 #include <iostream>
@@ -59,7 +64,7 @@ bool App::tryCreateContext(int major, int minor, int profile, const char* glslVe
 
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
     m_window = SDL_CreateWindow(
-        "Oscilloplot - XY Audio Generator",
+        "Oscilloplot " OSCILLOPLOT_VERSION " - XY Audio Generator",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         m_windowWidth,
@@ -77,6 +82,23 @@ bool App::tryCreateContext(int major, int minor, int profile, const char* glslVe
         m_window = nullptr;
         return false;
     }
+
+#if defined(_WIN32)
+    // Use the icon embedded in the exe (resource id 1, from oscilloplot.rc)
+    // for the title bar and taskbar; SDL's default window class icon is the
+    // generic one otherwise.
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    if (SDL_GetWindowWMInfo(m_window, &wmInfo)) {
+        HICON icon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(1));
+        if (icon) {
+            SendMessage(wmInfo.info.win.window, WM_SETICON, ICON_BIG,
+                        reinterpret_cast<LPARAM>(icon));
+            SendMessage(wmInfo.info.win.window, WM_SETICON, ICON_SMALL,
+                        reinterpret_cast<LPARAM>(icon));
+        }
+    }
+#endif
 
     m_glslVersion = glslVersion;
     return true;
@@ -210,10 +232,12 @@ void App::processEvents() {
                 }
                 break;
             case SDL_KEYDOWN:
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    m_running = false;
-                }
-                if (event.key.keysym.sym == SDLK_SPACE) {
+                // Space toggles playback - but not while a text field is being
+                // typed into, and Escape no longer quits (one stray keypress
+                // used to close the app with no confirmation; File > Exit and
+                // Alt+F4 remain).
+                if (event.key.keysym.sym == SDLK_SPACE &&
+                    !ImGui::GetIO().WantTextInput) {
                     setPlaying(!m_isPlaying);
                 }
                 break;

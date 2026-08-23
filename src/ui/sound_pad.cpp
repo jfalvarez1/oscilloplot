@@ -54,7 +54,7 @@ void SoundPad::render() {
                 m_pattern.resize(points);
 
                 for (int i = 0; i < points; ++i) {
-                    float t = static_cast<float>(i) / points * 2.0f * M_PI;
+                    float t = static_cast<float>(i) / static_cast<float>(points) * 2.0f * static_cast<float>(M_PI);
                     m_pattern.x[i] = std::cos(freq * t);
                     m_pattern.y[i] = std::sin(freq * t * (1.0f + cellId * 0.1f));
                 }

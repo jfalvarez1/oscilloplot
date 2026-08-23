@@ -105,11 +105,11 @@ class SineLUT {
 public:
     // Generate table at compile time (C++17)
     static constexpr std::array<float, SINE_TABLE_SIZE + 1> generateTable() {
-        std::array<float, SINE_TABLE_SIZE + 1> table{};
+        std::array<float, SINE_TABLE_SIZE + 1> lut{};
         for (size_t i = 0; i <= SINE_TABLE_SIZE; ++i) {
-            table[i] = std::sin(TWO_PI * static_cast<float>(i) / SINE_TABLE_SIZE);
+            lut[i] = std::sin(TWO_PI * static_cast<float>(i) / SINE_TABLE_SIZE);
         }
-        return table;
+        return lut;
     }
 
     static inline const std::array<float, SINE_TABLE_SIZE + 1> table = generateTable();

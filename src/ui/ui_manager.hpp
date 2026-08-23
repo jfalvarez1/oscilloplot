@@ -9,6 +9,7 @@
 namespace oscilloplot {
 
 class App;
+struct Pattern;
 
 //==============================================================================
 // Phosphor Display Settings - Physically-Based CRT Simulation
@@ -195,6 +196,9 @@ struct Shape3DState {
     float textDepth = 0.3f;
     bool textConnectFaces = true;
 
+    // Bake animation
+    int bakeFrames = 120;           // Rotation frames baked into one pattern
+
     // OBJ model specific
     ObjMesh objMesh;                // Loaded wireframe; empty until a file loads
     std::string objPath;            // Path of the loaded model
@@ -238,6 +242,9 @@ private:
     // Helper: Generate 3D shape pattern
     void generate3DShapePattern(App& app);
 
+    // Helper: Build one frame of the current 3D shape (no engine interaction)
+    void buildShapeFrame(Pattern& pattern);
+
     // Helper: Load a Wavefront .obj model into the 3D shape generator
     void loadObjModel(App& app, const std::string& path);
 
@@ -253,6 +260,7 @@ private:
     double m_statusTime = 0.0;   // ImGui time when the message was set
 
     // Panel visibility
+    bool m_showAbout = false;
     bool m_showDemoWindow = false;
     bool m_showEffectsPanel = true;
     bool m_showGeneratorsPanel = true;

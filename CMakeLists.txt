@@ -21,7 +21,11 @@ if(OSCILLOPLOT_STANDALONE AND CMAKE_HOST_WIN32 AND NOT DEFINED VCPKG_TARGET_TRIP
     endif()
 endif()
 
-project(oscilloplot VERSION 1.0.0 LANGUAGES CXX)
+project(oscilloplot VERSION 1.1.0 LANGUAGES CXX)
+
+# Single source of truth for the version string shown in the title bar,
+# the About box, and the Windows version resource.
+add_compile_definitions(OSCILLOPLOT_VERSION="${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,6 +98,14 @@ set(IMPLOT_SOURCES
     ${IMPLOT_DIR}/implot_demo.cpp
 )
 
+# Vendored code compiles at /W0 (MSVC) / -w (GCC/Clang) so that project
+# warnings are the only warnings the build prints.
+if(MSVC)
+    set_source_files_properties(${IMGUI_SOURCES} ${IMPLOT_SOURCES} PROPERTIES COMPILE_OPTIONS "/W0")
+else()
+    set_source_files_properties(${IMGUI_SOURCES} ${IMPLOT_SOURCES} PROPERTIES COMPILE_OPTIONS "-w")
+endif()
+
 #===============================================================================
 # Application Sources
 #===============================================================================
@@ -150,17 +162,6 @@ add_executable(${PROJECT_NAME}
 )
 
 #===============================================================================
-# Standalone Image Vectorizer Tool
-#===============================================================================
-
-add_executable(vectorizer_tool
-    src/tools/vectorizer_tool.cpp
-    src/vectorizer/image_vectorizer.cpp
-    ${IMGUI_SOURCES}
-    ${IMPLOT_SOURCES}
-)
-
-#===============================================================================
 # Include Directories
 #===============================================================================
 
@@ -170,15 +171,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${IMGUI_DIR}/backends
     ${IMPLOT_DIR}
     ${CMAKE_SOURCE_DIR}/external/pocketfft
-    ${CMAKE_SOURCE_DIR}/external/stb
-    ${CMAKE_SOURCE_DIR}/external/pfd
-)
-
-target_include_directories(vectorizer_tool PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${IMGUI_DIR}
-    ${IMGUI_DIR}/backends
-    ${IMPLOT_DIR}
     ${CMAKE_SOURCE_DIR}/external/stb
     ${CMAKE_SOURCE_DIR}/external/pfd
 )
@@ -205,12 +197,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glm::glm
 )
 
-target_link_libraries(vectorizer_tool PRIVATE
-    $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
-    $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-    OpenGL::GL
-)
-
 #===============================================================================
 # Compiler Flags - Platform Specific
 #===============================================================================
@@ -219,6 +205,7 @@ if(MSVC)
     # MSVC flags
     target_compile_options(${PROJECT_NAME} PRIVATE
         /W4                     # Warning level 4
+        /wd4324                 # "padded due to alignment specifier" - alignas is deliberate
         /MP                     # Multi-processor compilation
         /fp:fast                # Fast floating-point
         /GS-                    # Disable buffer security checks (perf)
@@ -241,25 +228,6 @@ if(MSVC)
     endif()
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        _CRT_SECURE_NO_WARNINGS
-        NOMINMAX
-        WIN32_LEAN_AND_MEAN
-    )
-
-    # Vectorizer tool compile options
-    target_compile_options(vectorizer_tool PRIVATE
-        /W4 /MP /fp:fast /GS-
-        $<$<CONFIG:Release>:/O2>
-        $<$<CONFIG:Release>:/Ob3>
-        $<$<CONFIG:Release>:/GL>
-    )
-    if(OSCILLOPLOT_ENABLE_SIMD AND NOT OSCILLOPLOT_SIMD_LEVEL STREQUAL "SSE2")
-        target_compile_options(vectorizer_tool PRIVATE /arch:${OSCILLOPLOT_SIMD_LEVEL})
-    endif()
-    if(OSCILLOPLOT_ENABLE_LTO)
-        target_link_options(vectorizer_tool PRIVATE $<$<CONFIG:Release>:/LTCG>)
-    endif()
-    target_compile_definitions(vectorizer_tool PRIVATE
         _CRT_SECURE_NO_WARNINGS
         NOMINMAX
         WIN32_LEAN_AND_MEAN
@@ -326,11 +294,16 @@ if(WIN32)
     # and a UTF-8 ANSI code page.
     target_sources(${PROJECT_NAME} PRIVATE assets/windows/oscilloplot.manifest)
 
+    # Icon + version resource, generated so FILEVERSION tracks PROJECT_VERSION.
+    file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/assets/windows/oscilloplot.ico" OSCILLOPLOT_ICO_NATIVE)
+    string(REPLACE "\\" "\\\\" OSCILLOPLOT_ICO_PATH "${OSCILLOPLOT_ICO_NATIVE}")
+    configure_file(assets/windows/oscilloplot.rc.in ${CMAKE_BINARY_DIR}/oscilloplot.rc @ONLY)
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/oscilloplot.rc)
+
     if(OSCILLOPLOT_STANDALONE)
         # GUI subsystem: launching from Explorer must not flash a console
         # window. SDL2main supplies WinMain and forwards to main().
         set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
-        set_target_properties(vectorizer_tool PROPERTIES WIN32_EXECUTABLE TRUE)
     else()
         # Dynamic build - the dependency DLLs must sit next to the executable.
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

@@ -15,7 +15,7 @@ void RingModEffect::process(Pattern& pattern, float time, float deltaTime) {
 
     for (size_t i = 0; i < pattern.size(); ++i) {
         float t = time + static_cast<float>(i) / pattern.size();
-        float carrier = std::sin(2.0f * M_PI * m_carrierFreq * t);
+        float carrier = std::sin(2.0f * static_cast<float>(M_PI) * m_carrierFreq * t);
 
         float modX = pattern.x[i] * carrier;
         float modY = pattern.y[i] * carrier;

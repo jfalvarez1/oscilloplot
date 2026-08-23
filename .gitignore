@@ -55,6 +55,7 @@ desktop.ini
 # Release artifacts
 *.zip
 release/
+dist/
 nul
 
 # Debug logs
