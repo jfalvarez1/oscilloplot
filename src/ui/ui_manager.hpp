@@ -271,6 +271,11 @@ private:
     void doSavePattern(App& app);
     void doExportWav(App& app);
 
+    // Visual style and default layout
+    void applyStyle();
+    void placeWindow(float x, float y, float w, float h);  // viewport fractions
+    int m_layoutResetFrames = 0;   // >0: re-apply default layout this frame
+
     // Sequencer
     void renderSequencer(App& app);
     void updateSequencer(App& app);     // Per-frame step advancement

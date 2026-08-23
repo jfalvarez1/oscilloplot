@@ -100,6 +100,7 @@ UIManager::UIManager() {
 UIManager::~UIManager() = default;
 
 bool UIManager::init() {
+    applyStyle();
     return true;
 }
 
@@ -151,6 +152,8 @@ void UIManager::render(App& app) {
         ImGui::ShowDemoWindow(&m_showDemoWindow);
         ImPlot::ShowDemoWindow();
     }
+
+    if (m_layoutResetFrames > 0) m_layoutResetFrames--;
 
     // Animate 3D shape if enabled AND 3D shape is the active pattern source
     if (m_shape3D.animate && m_3dShapeActive) {
@@ -328,6 +331,122 @@ void UIManager::doExportWav(App& app) {
     } else {
         setStatus("Failed to export " + path, true);
     }
+}
+
+//==============================================================================
+// Visual style
+//
+// One coherent dark theme instead of stock ImGui: near-black surfaces so the
+// phosphor scope is the brightest thing on screen, a single phosphor-green
+// accent for anything active or primary, consistent 4px rounding, and enough
+// frame padding to give controls comfortable hit targets.
+//==============================================================================
+
+void UIManager::applyStyle() {
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    // Geometry
+    style.WindowPadding    = ImVec2(12, 10);
+    style.FramePadding     = ImVec2(8, 5);
+    style.CellPadding      = ImVec2(6, 4);
+    style.ItemSpacing      = ImVec2(8, 6);
+    style.ItemInnerSpacing = ImVec2(6, 4);
+    style.IndentSpacing    = 16.0f;
+    style.ScrollbarSize    = 12.0f;
+    style.GrabMinSize      = 12.0f;
+
+    style.WindowRounding    = 6.0f;
+    style.ChildRounding     = 4.0f;
+    style.FrameRounding     = 4.0f;
+    style.PopupRounding     = 4.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding      = 4.0f;
+    style.TabRounding       = 4.0f;
+
+    style.WindowBorderSize = 1.0f;
+    style.FrameBorderSize  = 0.0f;
+    style.PopupBorderSize  = 1.0f;
+
+    style.WindowTitleAlign = ImVec2(0.0f, 0.5f);
+    style.SeparatorTextBorderSize = 2.0f;
+
+    // Palette: charcoal surfaces + phosphor green accent (P31: 89,255,64)
+    const ImVec4 bg0     (0.075f, 0.080f, 0.090f, 1.00f);  // window
+    const ImVec4 bg1     (0.105f, 0.110f, 0.125f, 1.00f);  // child/frame
+    const ImVec4 bg2     (0.150f, 0.160f, 0.180f, 1.00f);  // hovered frame
+    const ImVec4 bg3     (0.195f, 0.210f, 0.235f, 1.00f);  // active frame
+    const ImVec4 accent  (0.286f, 0.780f, 0.240f, 1.00f);  // phosphor green
+    const ImVec4 accentHi(0.360f, 0.900f, 0.310f, 1.00f);
+    const ImVec4 accentLo(0.220f, 0.560f, 0.190f, 1.00f);
+    const ImVec4 text    (0.920f, 0.930f, 0.920f, 1.00f);
+    const ImVec4 textDim (0.520f, 0.545f, 0.530f, 1.00f);
+    const ImVec4 border  (0.220f, 0.235f, 0.250f, 0.60f);
+
+    ImVec4* c = style.Colors;
+    c[ImGuiCol_Text]                 = text;
+    c[ImGuiCol_TextDisabled]         = textDim;
+    c[ImGuiCol_WindowBg]             = bg0;
+    c[ImGuiCol_ChildBg]              = ImVec4(0, 0, 0, 0.12f);
+    c[ImGuiCol_PopupBg]              = ImVec4(0.09f, 0.095f, 0.105f, 0.98f);
+    c[ImGuiCol_Border]               = border;
+    c[ImGuiCol_BorderShadow]         = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_FrameBg]              = bg1;
+    c[ImGuiCol_FrameBgHovered]       = bg2;
+    c[ImGuiCol_FrameBgActive]        = bg3;
+    c[ImGuiCol_TitleBg]              = ImVec4(0.055f, 0.058f, 0.065f, 1.0f);
+    c[ImGuiCol_TitleBgActive]        = ImVec4(0.10f, 0.115f, 0.11f, 1.0f);
+    c[ImGuiCol_TitleBgCollapsed]     = ImVec4(0.055f, 0.058f, 0.065f, 0.8f);
+    c[ImGuiCol_MenuBarBg]            = ImVec4(0.090f, 0.095f, 0.105f, 1.0f);
+    c[ImGuiCol_ScrollbarBg]          = ImVec4(0, 0, 0, 0.15f);
+    c[ImGuiCol_ScrollbarGrab]        = bg2;
+    c[ImGuiCol_ScrollbarGrabHovered] = bg3;
+    c[ImGuiCol_ScrollbarGrabActive]  = accentLo;
+    c[ImGuiCol_CheckMark]            = accent;
+    c[ImGuiCol_SliderGrab]           = accent;
+    c[ImGuiCol_SliderGrabActive]     = accentHi;
+    c[ImGuiCol_Button]               = bg2;
+    c[ImGuiCol_ButtonHovered]        = bg3;
+    c[ImGuiCol_ButtonActive]         = accentLo;
+    c[ImGuiCol_Header]               = ImVec4(0.286f, 0.780f, 0.240f, 0.18f);
+    c[ImGuiCol_HeaderHovered]        = ImVec4(0.286f, 0.780f, 0.240f, 0.28f);
+    c[ImGuiCol_HeaderActive]         = ImVec4(0.286f, 0.780f, 0.240f, 0.38f);
+    c[ImGuiCol_Separator]            = border;
+    c[ImGuiCol_SeparatorHovered]     = accentLo;
+    c[ImGuiCol_SeparatorActive]      = accent;
+    c[ImGuiCol_ResizeGrip]           = ImVec4(0.286f, 0.780f, 0.240f, 0.15f);
+    c[ImGuiCol_ResizeGripHovered]    = ImVec4(0.286f, 0.780f, 0.240f, 0.45f);
+    c[ImGuiCol_ResizeGripActive]     = accent;
+    c[ImGuiCol_Tab]                  = bg1;
+    c[ImGuiCol_TabHovered]           = ImVec4(0.286f, 0.780f, 0.240f, 0.30f);
+    c[ImGuiCol_TabActive]            = ImVec4(0.286f, 0.780f, 0.240f, 0.22f);
+    c[ImGuiCol_TabUnfocused]         = bg1;
+    c[ImGuiCol_TabUnfocusedActive]   = bg2;
+    c[ImGuiCol_PlotLines]            = accent;
+    c[ImGuiCol_PlotLinesHovered]     = accentHi;
+    c[ImGuiCol_PlotHistogram]        = accent;
+    c[ImGuiCol_PlotHistogramHovered] = accentHi;
+    c[ImGuiCol_TextSelectedBg]       = ImVec4(0.286f, 0.780f, 0.240f, 0.30f);
+    c[ImGuiCol_DragDropTarget]       = accentHi;
+    c[ImGuiCol_NavHighlight]         = accent;
+    c[ImGuiCol_ModalWindowDimBg]     = ImVec4(0, 0, 0, 0.55f);
+}
+
+//==============================================================================
+// Default layout
+//
+// Windows are placed as fractions of the viewport work area instead of pixel
+// positions tuned for one monitor: controls rail on the left, the scope takes
+// the center, effects and generators stack on the right. View > Reset Layout
+// re-applies this to every window that is currently open.
+//==============================================================================
+
+void UIManager::placeWindow(float x, float y, float w, float h) {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGuiCond cond = (m_layoutResetFrames > 0) ? ImGuiCond_Always : ImGuiCond_FirstUseEver;
+    ImGui::SetNextWindowPos(
+        ImVec2(vp->WorkPos.x + x * vp->WorkSize.x, vp->WorkPos.y + y * vp->WorkSize.y), cond);
+    ImGui::SetNextWindowSize(
+        ImVec2(w * vp->WorkSize.x, h * vp->WorkSize.y), cond);
 }
 
 //==============================================================================
@@ -556,8 +675,7 @@ void UIManager::sequencerExportWav(App& app) {
 }
 
 void UIManager::renderSequencer(App& app) {
-    ImGui::SetNextWindowPos(ImVec2(420, 80), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(400, 480), ImGuiCond_FirstUseEver);
+    placeWindow(0.33f, 0.08f, 0.32f, 0.65f);
     ImGui::Begin("Sequencer", &m_showSequencer);
 
     // Transport
@@ -714,6 +832,10 @@ void UIManager::renderMenuBar(App& app) {
             ImGui::Separator();
             ImGui::MenuItem("Display Settings", nullptr, &m_showDisplaySettings);
             ImGui::Separator();
+            if (ImGui::MenuItem("Reset Layout")) {
+                m_layoutResetFrames = 2;   // Re-place every open window
+            }
+            ImGui::Separator();
             ImGui::MenuItem("ImGui Demo", nullptr, &m_showDemoWindow);
             ImGui::EndMenu();
         }
@@ -783,61 +905,71 @@ void UIManager::renderMenuBar(App& app) {
 
 void UIManager::renderControlPanel(App& app) {
     // Position: Left side
-    ImGui::SetNextWindowPos(ImVec2(10, 30), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 450), ImGuiCond_FirstUseEver);
+    placeWindow(0.006f, 0.008f, 0.20f, 0.60f);
     ImGui::Begin("Controls");
 
-    ImGui::Text("Audio Parameters");
-    ImGui::Separator();
-
-    int sampleRate = app.getSampleRate();
-    if (ImGui::SliderInt("Base Sample Rate", &sampleRate, 100, 10000)) {
-        app.setSampleRate(sampleRate);
-    }
-
-    int multiplier = app.getPlaybackMultiplier();
-    if (ImGui::SliderInt("Playback Multiplier", &multiplier, 10, 500)) {
-        app.setPlaybackMultiplier(multiplier);
-    }
-
-    ImGui::Text("Actual Rate: %d Hz", sampleRate * multiplier);
-
-    int duration = app.getDuration();
-    if (ImGui::SliderInt("Duration (s)", &duration, 1, 120)) {
-        app.setDuration(duration);
-    }
-
-    int repeats = app.getPatternRepeats();
-    if (ImGui::SliderInt("Pattern Repeats", &repeats, 1, 2000)) {
-        app.setPatternRepeats(repeats);
-    }
-
-    ImGui::Separator();
-
-    // Play/Stop button with color
+    // Primary action first
     if (app.isPlaying()) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.22f, 0.20f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.30f, 0.28f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.65f, 0.18f, 0.16f, 1.0f));
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.4f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.22f, 0.56f, 0.19f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.29f, 0.68f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.46f, 0.16f, 1.0f));
     }
-
-    if (ImGui::Button(app.isPlaying() ? "STOP [Space]" : "PLAY [Space]", ImVec2(-1, 50))) {
+    if (ImGui::Button(app.isPlaying() ? "Stop" : "Play", ImVec2(-1, 46))) {
         app.setPlaying(!app.isPlaying());
     }
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(3);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Space");
 
-    ImGui::Separator();
-
-    // Pattern info
+    // Pattern info + playback position
     ImGui::Text("Pattern: %zu points", app.getPattern().size());
-
-    // Playback position indicator
     if (app.isPlaying()) {
         float pos = app.getAudioEngine().getPlaybackPosition();
-        ImGui::ProgressBar(pos, ImVec2(-1, 0), "");
+        ImGui::ProgressBar(pos, ImVec2(-1, 4), "");
     }
+    if (!app.isAudioAvailable()) {
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "No audio device");
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Audio");
+
+    // Narrow panel: labels above full-width sliders so nothing truncates
+    ImGui::PushItemWidth(-FLT_MIN);
+
+    ImGui::TextUnformatted("Base Rate");
+    int sampleRate = app.getSampleRate();
+    if (ImGui::SliderInt("##BaseRate", &sampleRate, 100, 10000, "%d Hz")) {
+        app.setSampleRate(sampleRate);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("How fast the beam steps through the pattern.\nLower = slower, brighter trace.");
+    }
+
+    ImGui::TextUnformatted("Multiplier");
+    int multiplier = app.getPlaybackMultiplier();
+    if (ImGui::SliderInt("##Multiplier", &multiplier, 10, 500, "x%d")) {
+        app.setPlaybackMultiplier(multiplier);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Output sample rate = base rate x multiplier.\nHigher = smoother beam movement.");
+    }
+
+    ImGui::TextDisabled("Output rate: %d Hz", sampleRate * multiplier);
+
+    ImGui::TextUnformatted("Export Length");
+    int duration = app.getDuration();
+    if (ImGui::SliderInt("##ExportLength", &duration, 1, 120, "%d s")) {
+        app.setDuration(duration);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Length of exported WAV files.\nLive playback loops until stopped.");
+    }
+
+    ImGui::PopItemWidth();
 
     ImGui::End();
 }
@@ -848,8 +980,7 @@ void UIManager::renderControlPanel(App& app) {
 
 void UIManager::renderOscilloscopeDisplay(App& app) {
     // Position: Center
-    ImGui::SetNextWindowPos(ImVec2(300, 30), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
+    placeWindow(0.212f, 0.008f, 0.50f, 0.965f);
     // Set minimum window size to ensure display is always visible
     ImGui::SetNextWindowSizeConstraints(ImVec2(400, 400), ImVec2(FLT_MAX, FLT_MAX));
 
@@ -1137,8 +1268,7 @@ void UIManager::renderEffectsPanel(App& app) {
     auto& fx = app.getEffects();
 
     // Position: Right side, top
-    ImGui::SetNextWindowPos(ImVec2(910, 30), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(360, 350), ImGuiCond_FirstUseEver);
+    placeWindow(0.718f, 0.008f, 0.276f, 0.475f);
     ImGui::Begin("Effects", &m_showEffectsPanel);
 
     // ROTATION
@@ -1329,8 +1459,7 @@ void UIManager::renderEffectsPanel(App& app) {
 
 void UIManager::renderGeneratorsPanel(App& app) {
     // Position: Right side, below Effects
-    ImGui::SetNextWindowPos(ImVec2(910, 390), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(360, 380), ImGuiCond_FirstUseEver);
+    placeWindow(0.718f, 0.495f, 0.276f, 0.478f);
     ImGui::Begin("Generators", &m_showGeneratorsPanel);
 
     // Shared parameters
@@ -1762,8 +1891,7 @@ void UIManager::generateHarmonicsPattern(App& app) {
 
 void UIManager::renderHarmonicsEditor(App& app) {
     // Position: Floating, center-left area
-    ImGui::SetNextWindowPos(ImVec2(50, 200), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
+    placeWindow(0.24f, 0.10f, 0.42f, 0.68f);
     ImGui::Begin("Harmonics Editor", &m_showHarmonicsEditor);
 
     ImGui::Text("Create custom Lissajous curves with harmonics and sweeps");
@@ -1923,8 +2051,7 @@ void UIManager::renderHarmonicsEditor(App& app) {
 
 void UIManager::renderDrawingCanvas(App& app) {
     // Position: Floating, center area
-    ImGui::SetNextWindowPos(ImVec2(350, 150), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 550), ImGuiCond_FirstUseEver);
+    placeWindow(0.28f, 0.08f, 0.36f, 0.75f);
     ImGui::Begin("Drawing Canvas", &m_showDrawingCanvas);
 
     ImGui::Text("Click and drag to draw. Release to finish a stroke.");
@@ -2083,10 +2210,26 @@ void UIManager::renderDrawingCanvas(App& app) {
         m_drawing.pointsY.resize(cut);
     }
 
-    if (ImGui::Button("Clear Canvas", ImVec2(-1, 0))) {
-        m_drawing.pointsX.clear();
-        m_drawing.pointsY.clear();
-        m_drawing.strokeStarts.clear();
+    if (ImGui::Button("Clear Canvas", ImVec2(-1, 0)) && !m_drawing.pointsX.empty()) {
+        ImGui::OpenPopup("Clear canvas?");
+    }
+    if (ImGui::BeginPopupModal("Clear canvas?", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Delete all %zu strokes? This cannot be undone.",
+                    m_drawing.strokeStarts.size());
+        ImGui::Spacing();
+        if (ImGui::Button("Clear", ImVec2(120, 0))) {
+            m_drawing.pointsX.clear();
+            m_drawing.pointsY.clear();
+            m_drawing.strokeStarts.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     if (ImGui::Button("Use as Pattern", ImVec2(-1, 30))) {
@@ -2591,8 +2734,7 @@ void UIManager::loadObjModel(App& app, const std::string& path) {
 
 void UIManager::render3DShapeGenerator(App& app) {
     // Position: Floating, upper center
-    ImGui::SetNextWindowPos(ImVec2(400, 100), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 550), ImGuiCond_FirstUseEver);
+    placeWindow(0.30f, 0.05f, 0.28f, 0.82f);
     ImGui::Begin("3D Shape Generator", &m_show3DShapeGenerator);
 
     ImGui::Text("Project 3D wireframes to 2D XY");
@@ -2817,8 +2959,7 @@ void UIManager::render3DShapeGenerator(App& app) {
 
 void UIManager::renderSoundPad(App& app) {
     // Position: Floating, left side below Controls
-    ImGui::SetNextWindowPos(ImVec2(10, 490), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 300), ImGuiCond_FirstUseEver);
+    placeWindow(0.006f, 0.62f, 0.20f, 0.36f);
     ImGui::Begin("Sound Pad", &m_showSoundPad);
     ImGui::Text("16-Step XY Sequencer");
     ImGui::Separator();
@@ -2882,8 +3023,7 @@ void UIManager::renderSoundPad(App& app) {
 void UIManager::renderDisplaySettings(App& app) {
     (void)app;
     // Position: Floating, right of oscilloscope
-    ImGui::SetNextWindowPos(ImVec2(600, 150), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_FirstUseEver);
+    placeWindow(0.44f, 0.10f, 0.25f, 0.70f);
     ImGui::Begin("Display Settings", &m_showDisplaySettings);
 
     //==========================================================================
@@ -2976,14 +3116,9 @@ void UIManager::renderDisplaySettings(App& app) {
     // CRT EFFECTS (ADVANCED)
     //==========================================================================
     if (ImGui::CollapsingHeader("CRT Effects (Advanced)")) {
-        ImGui::SliderFloat("Screen Curvature", &m_phosphor.screenCurvature, 0.0f, 0.1f);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Not yet implemented");
-        ImGui::SliderFloat("Vignette", &m_phosphor.vignetteStrength, 0.0f, 0.3f);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Edge darkening (not yet implemented)");
-        ImGui::SliderFloat("Analog Noise", &m_phosphor.noiseAmount, 0.0f, 0.1f);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Not yet implemented");
-        ImGui::SliderFloat("Scanlines", &m_phosphor.scanlineEffect, 0.0f, 0.5f);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Not applicable to XY mode");
+        // None of the CRT post-effects are implemented in the renderer yet;
+        // showing live-looking sliders for them would be dishonest UI.
+        ImGui::TextDisabled("Curvature, vignette, noise, scanlines: coming soon");
     }
 
     //==========================================================================
@@ -3000,8 +3135,7 @@ void UIManager::renderDisplaySettings(App& app) {
 // Image Vectorizer Panel
 //==============================================================================
 void UIManager::renderImageVectorizer(App& app) {
-    ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(850, 650), ImGuiCond_FirstUseEver);
+    placeWindow(0.10f, 0.05f, 0.68f, 0.86f);
     ImGui::Begin("Image Vectorizer", &m_showImageVectorizer);
 
     // Local state for file path input

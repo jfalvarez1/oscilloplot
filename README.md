@@ -33,6 +33,11 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
   - **OBJ Model import**: load any Wavefront `.obj` mesh as a wireframe. The
     model is auto-centered and scaled to fit, and an adjustable edge cap keeps
     dense meshes traceable.
+  - **Bake Rotation**: freeze N animation frames into one long pattern so
+    playback and WAV export actually rotate.
+- **Sequencer** (View > Sequencer): capture patterns as steps, reorder and
+  rename them, set per-step cycle counts, loop, save/load as `.oseq`, and
+  export the whole sequence as one WAV.
 - **Rich effects pipeline**:
   - Rotation (static/animated)
   - X/Y axis fading
@@ -322,11 +327,11 @@ cmake --build build
 
 ### Keyboard Shortcuts
 
-- **Space**: Play/Stop
+- **Space**: Play/Stop (ignored while typing in a text field)
 - **Ctrl+O**: Load pattern
 - **Ctrl+S**: Save pattern
 - **Ctrl+E**: Export WAV
-- **Escape**: Exit
+- **Ctrl+Z**: Undo stroke (Drawing Canvas focused)
 
 ### Quick Start
 
@@ -357,7 +362,7 @@ Connect to an oscilloscope in X-Y mode to visualize the patterns on hardware.
 
 - [ ] MIDI input support
 - [ ] VST plugin hosting
-- [ ] Pattern sequencing/timeline
+- [x] Pattern sequencing (Sequencer panel)
 - [x] 3D shape import (OBJ files)
 
 ## License

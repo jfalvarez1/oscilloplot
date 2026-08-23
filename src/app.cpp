@@ -176,12 +176,8 @@ bool App::initImGui() {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Style
+    // Base style; UIManager::applyStyle() applies the full theme after init
     ImGui::StyleColorsDark();
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 5.0f;
-    style.FrameRounding = 3.0f;
-    style.GrabRounding = 3.0f;
 
     // Initialize backends
     ImGui_ImplSDL2_InitForOpenGL(m_window, m_glContext);
