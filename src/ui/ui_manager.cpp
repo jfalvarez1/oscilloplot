@@ -1462,277 +1462,275 @@ void UIManager::renderGeneratorsPanel(App& app) {
     placeWindow(0.718f, 0.495f, 0.276f, 0.478f);
     ImGui::Begin("Generators", &m_showGeneratorsPanel);
 
-    // Shared parameters
-    static int numPoints = 500;
-    ImGui::SliderInt("Points", &numPoints, 100, 5000);
-
-    // Helper lambda to update pattern and audio engine
-    // Also disables 3D shape animation so it doesn't overwrite user's selection
-    auto setPattern = [&]() {
-        m_3dShapeActive = false;  // Stop 3D animation from overwriting
-        app.getAudioEngine().setPattern(app.getPattern());
+    //--------------------------------------------------------------------------
+    // Live parameter feedback
+    //
+    // Clicking a Generate button makes that generator "active"; from then on
+    // any change to its parameters (or the shared Points slider) regenerates
+    // the pattern immediately, so sliders give live feedback on the scope.
+    //--------------------------------------------------------------------------
+    enum class Gen {
+        None, Circle, Ellipse, Sine, Lissajous, Star, Flower, Rose,
+        ArchSpiral, LogSpiral, Helix, Trefoil, TorusKnot,
+        Butterfly, Cardioid, Deltoid, Hypotrochoid, Epitrochoid,
+        Figure8, Infinity, Heart, Square, Sawtooth, Triangle
     };
+    static Gen activeGen = Gen::None;
+
+    // All generator parameters (declared up front so the dispatcher sees them)
+    static int numPoints = 500;
+    static float sineFreq = 3.0f;
+    static float ellipseX = 1.0f, ellipseY = 0.6f;
+    static int lissA = 3, lissB = 2;
+    static float lissPhase = 0.0f;
+    static int starSpikes = 5;
+    static float starInner = 0.5f;
+    static int flowerPetals = 6;
+    static float petalDepth = 0.5f;
+    static int roseK = 4;
+    static float spiralTurns = 5.0f;
+    static float spiralStart = 0.1f, spiralEnd = 1.0f;
+    static float logA = 0.1f, logB = 0.1f, logMaxAngle = 18.85f;
+    static int torusP = 2, torusQ = 3;
+    static float hypoR = 5.0f, hypoR2 = 3.0f, hypoD = 5.0f;
+    static float epiR = 5.0f, epiR2 = 2.0f, epiD = 2.0f;
+    static float waveFreq = 3.0f;
+
+    // Generate `id` into the app pattern and make it the active generator.
+    auto runGenerator = [&](Gen id) {
+        Pattern& p = app.getPattern();
+        switch (id) {
+            case Gen::None:      return;
+            case Gen::Circle:    generators::generateCircle(p, numPoints); break;
+            case Gen::Ellipse:   generators::generateEllipse(p, numPoints, ellipseX, ellipseY); break;
+            case Gen::Sine:      generators::generateSineWave(p, numPoints, sineFreq); break;
+            case Gen::Lissajous: generators::generateLissajous(p, numPoints, lissA, lissB, lissPhase); break;
+            case Gen::Star:      generators::generateStar(p, numPoints, starSpikes, starInner); break;
+            case Gen::Flower:    generators::generateFlower(p, numPoints, flowerPetals, petalDepth); break;
+            case Gen::Rose:      generators::generateRoseCurve(p, numPoints, roseK); break;
+            case Gen::ArchSpiral: generators::generateSpiral(p, numPoints, spiralTurns, spiralStart, spiralEnd); break;
+            case Gen::LogSpiral: generators::generateLogSpiral(p, numPoints, logA, logB, logMaxAngle); break;
+            case Gen::Helix:     generators::generateHelix(p, numPoints); break;
+            case Gen::Trefoil:   generators::generateTrefoilKnot(p, numPoints); break;
+            case Gen::TorusKnot: generators::generateTorusKnot(p, numPoints, torusP, torusQ); break;
+            case Gen::Butterfly: generators::generateButterfly(p, 2000); break;  // Needs more points
+            case Gen::Cardioid:  generators::generateCardioid(p, numPoints); break;
+            case Gen::Deltoid:   generators::generateDeltoid(p, numPoints); break;
+            case Gen::Hypotrochoid: generators::generateHypotrochoid(p, numPoints, hypoR, hypoR2, hypoD); break;
+            case Gen::Epitrochoid:  generators::generateEpitrochoid(p, numPoints, epiR, epiR2, epiD); break;
+            case Gen::Figure8:   generators::generateFigure8(p, numPoints); break;
+            case Gen::Infinity:  generators::generateInfinity(p, numPoints); break;
+            case Gen::Heart:     generators::generateHeart(p, numPoints); break;
+            case Gen::Square:    generators::generateSquareWave(p, numPoints, waveFreq); break;
+            case Gen::Sawtooth:  generators::generateSawtoothWave(p, numPoints, waveFreq); break;
+            case Gen::Triangle:  generators::generateTriangleWave(p, numPoints, waveFreq); break;
+        }
+        activeGen = id;
+        m_3dShapeActive = false;  // Stop 3D animation from overwriting
+        app.getAudioEngine().setPattern(p);
+    };
+
+    // Re-run the active generator when one of its parameters changed.
+    auto liveUpdate = [&](bool changed, Gen id) {
+        if (changed && activeGen == id) runGenerator(id);
+    };
+
+    // Shared parameter: affects whichever generator is active
+    if (ImGui::SliderInt("Points", &numPoints, 100, 5000) && activeGen != Gen::None) {
+        runGenerator(activeGen);
+    }
 
     //==========================================================================
     // BASIC SHAPES
     //==========================================================================
     if (ImGui::CollapsingHeader("Basic Shapes", ImGuiTreeNodeFlags_DefaultOpen)) {
-        static float sineFreq = 3.0f;
-        static float ellipseX = 1.0f, ellipseY = 0.6f;
-
-        if (ImGui::Button("Circle", ImVec2(100, 0))) {
-            generators::generateCircle(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Circle", ImVec2(100, 0))) runGenerator(Gen::Circle);
         ImGui::SameLine();
-        if (ImGui::Button("Ellipse", ImVec2(100, 0))) {
-            generators::generateEllipse(app.getPattern(), numPoints, ellipseX, ellipseY);
-            setPattern();
-        }
+        if (ImGui::Button("Ellipse", ImVec2(100, 0))) runGenerator(Gen::Ellipse);
+
+        bool ch = false;
         ImGui::SetNextItemWidth(80);
-        ImGui::InputFloat("X##ell", &ellipseX, 0.0f, 0.0f, "%.2f"); ImGui::SameLine();
+        ch |= ImGui::InputFloat("X##ell", &ellipseX, 0.0f, 0.0f, "%.2f"); ImGui::SameLine();
         ImGui::SetNextItemWidth(80);
-        ImGui::InputFloat("Y##ell", &ellipseY, 0.0f, 0.0f, "%.2f");
+        ch |= ImGui::InputFloat("Y##ell", &ellipseY, 0.0f, 0.0f, "%.2f");
+        liveUpdate(ch, Gen::Ellipse);
 
         ImGui::SetNextItemWidth(120);
-        ImGui::SliderFloat("Sine Cycles", &sineFreq, 1.0f, 10.0f);
+        liveUpdate(ImGui::SliderFloat("Sine Cycles", &sineFreq, 1.0f, 10.0f), Gen::Sine);
         ImGui::SameLine();
-        if (ImGui::Button("Sine Wave", ImVec2(-1, 0))) {
-            generators::generateSineWave(app.getPattern(), numPoints, sineFreq);
-            setPattern();
-        }
+        if (ImGui::Button("Sine Wave", ImVec2(-1, 0))) runGenerator(Gen::Sine);
     }
 
     //==========================================================================
     // LISSAJOUS CURVES
     //==========================================================================
     if (ImGui::CollapsingHeader("Lissajous Curves")) {
-        static int lissA = 3, lissB = 2;
-        static float lissPhase = 0.0f;
-
+        bool ch = false;
         ImGui::SetNextItemWidth(60);
-        ImGui::InputInt("A##liss", &lissA); ImGui::SameLine();
+        ch |= ImGui::InputInt("A##liss", &lissA); ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::InputInt("B##liss", &lissB); ImGui::SameLine();
+        ch |= ImGui::InputInt("B##liss", &lissB); ImGui::SameLine();
         ImGui::SetNextItemWidth(80);
-        ImGui::SliderFloat("Phase##liss", &lissPhase, 0.0f, PI, "%.2f");
+        ch |= ImGui::SliderFloat("Phase##liss", &lissPhase, 0.0f, PI, "%.2f");
 
-        if (ImGui::Button("3:2", ImVec2(50, 0))) { lissA = 3; lissB = 2; lissPhase = 0.0f; }
+        if (ImGui::Button("3:2", ImVec2(50, 0)))       { lissA = 3; lissB = 2; lissPhase = 0.0f; ch = true; }
         ImGui::SameLine();
-        if (ImGui::Button("3:2 (+90)", ImVec2(70, 0))) { lissA = 3; lissB = 2; lissPhase = PI / 2.0f; }
+        if (ImGui::Button("3:2 (+90)", ImVec2(70, 0))) { lissA = 3; lissB = 2; lissPhase = PI / 2.0f; ch = true; }
         ImGui::SameLine();
-        if (ImGui::Button("5:4", ImVec2(50, 0))) { lissA = 5; lissB = 4; lissPhase = 0.0f; }
+        if (ImGui::Button("5:4", ImVec2(50, 0)))       { lissA = 5; lissB = 4; lissPhase = 0.0f; ch = true; }
         ImGui::SameLine();
-        if (ImGui::Button("7:5", ImVec2(50, 0))) { lissA = 7; lissB = 5; lissPhase = PI / 3.0f; }
+        if (ImGui::Button("7:5", ImVec2(50, 0)))       { lissA = 7; lissB = 5; lissPhase = PI / 3.0f; ch = true; }
+        liveUpdate(ch, Gen::Lissajous);
 
-        if (ImGui::Button("Generate Lissajous", ImVec2(-1, 0))) {
-            generators::generateLissajous(app.getPattern(), numPoints, lissA, lissB, lissPhase);
-            setPattern();
-        }
+        if (ImGui::Button("Generate Lissajous", ImVec2(-1, 0))) runGenerator(Gen::Lissajous);
     }
 
     //==========================================================================
     // STARS & FLOWERS
     //==========================================================================
     if (ImGui::CollapsingHeader("Stars & Flowers")) {
-        static int starSpikes = 5;
-        static float starInner = 0.5f;
-        static int flowerPetals = 6;
-        static float petalDepth = 0.5f;
-        static int roseK = 4;
-
-        // Star generator
+        bool ch = false;
         ImGui::Text("Star:");
         ImGui::SetNextItemWidth(100);
-        ImGui::SliderInt("Spikes##star", &starSpikes, 3, 20);
+        ch |= ImGui::SliderInt("Spikes##star", &starSpikes, 3, 20);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(100);
-        ImGui::SliderFloat("Inner Radius##star", &starInner, 0.1f, 0.9f, "%.2f");
+        ch |= ImGui::SliderFloat("Inner Radius##star", &starInner, 0.1f, 0.9f, "%.2f");
+        liveUpdate(ch, Gen::Star);
         ImGui::SameLine();
-        if (ImGui::Button("Generate Star", ImVec2(-1, 0))) {
-            generators::generateStar(app.getPattern(), numPoints, starSpikes, starInner);
-            setPattern();
-        }
+        if (ImGui::Button("Generate Star", ImVec2(-1, 0))) runGenerator(Gen::Star);
 
-        // Flower generator
+        ch = false;
         ImGui::Text("Flower:");
         ImGui::SetNextItemWidth(100);
-        ImGui::SliderInt("Petals##flower", &flowerPetals, 2, 20);
+        ch |= ImGui::SliderInt("Petals##flower", &flowerPetals, 2, 20);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(100);
-        ImGui::SliderFloat("Petal Depth##flower", &petalDepth, 0.1f, 0.9f, "%.2f");
+        ch |= ImGui::SliderFloat("Petal Depth##flower", &petalDepth, 0.1f, 0.9f, "%.2f");
+        liveUpdate(ch, Gen::Flower);
         ImGui::SameLine();
-        if (ImGui::Button("Generate Flower", ImVec2(-1, 0))) {
-            generators::generateFlower(app.getPattern(), numPoints, flowerPetals, petalDepth);
-            setPattern();
-        }
+        if (ImGui::Button("Generate Flower", ImVec2(-1, 0))) runGenerator(Gen::Flower);
 
-        // Rose curve
         ImGui::Text("Rose Curve (k petals):");
         ImGui::SetNextItemWidth(100);
-        ImGui::SliderInt("k (petals)##rose", &roseK, 1, 12);
+        liveUpdate(ImGui::SliderInt("k (petals)##rose", &roseK, 1, 12), Gen::Rose);
         ImGui::SameLine();
-        if (ImGui::Button("Generate Rose", ImVec2(-1, 0))) {
-            generators::generateRoseCurve(app.getPattern(), numPoints, roseK);
-            setPattern();
-        }
+        if (ImGui::Button("Generate Rose", ImVec2(-1, 0))) runGenerator(Gen::Rose);
     }
 
     //==========================================================================
     // SPIRALS
     //==========================================================================
     if (ImGui::CollapsingHeader("Spirals")) {
-        static float spiralTurns = 5.0f;
-        static float spiralStart = 0.1f, spiralEnd = 1.0f;
-        static float logA = 0.1f, logB = 0.1f, logMaxAngle = 18.85f;
-
+        bool ch = false;
         ImGui::Text("Archimedean Spiral");
         ImGui::SetNextItemWidth(80);
-        ImGui::SliderFloat("Turns##arch", &spiralTurns, 1.0f, 20.0f);
+        ch |= ImGui::SliderFloat("Turns##arch", &spiralTurns, 1.0f, 20.0f);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("Start##arch", &spiralStart, 0.0f, 0.5f, "%.2f");
+        ch |= ImGui::SliderFloat("Start##arch", &spiralStart, 0.0f, 0.5f, "%.2f");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("End##arch", &spiralEnd, 0.5f, 1.5f, "%.2f");
-        if (ImGui::Button("Generate Archimedean", ImVec2(-1, 0))) {
-            generators::generateSpiral(app.getPattern(), numPoints, spiralTurns, spiralStart, spiralEnd);
-            setPattern();
-        }
+        ch |= ImGui::SliderFloat("End##arch", &spiralEnd, 0.5f, 1.5f, "%.2f");
+        liveUpdate(ch, Gen::ArchSpiral);
+        if (ImGui::Button("Generate Archimedean", ImVec2(-1, 0))) runGenerator(Gen::ArchSpiral);
 
+        ch = false;
         ImGui::Text("Logarithmic Spiral");
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("a##log", &logA, 0.01f, 0.5f, "%.2f");
+        ch |= ImGui::SliderFloat("a##log", &logA, 0.01f, 0.5f, "%.2f");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("b##log", &logB, 0.01f, 0.3f, "%.2f");
+        ch |= ImGui::SliderFloat("b##log", &logB, 0.01f, 0.3f, "%.2f");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(80);
-        ImGui::SliderFloat("Max Angle##log", &logMaxAngle, 6.0f, 30.0f, "%.1f");
-        if (ImGui::Button("Generate Logarithmic", ImVec2(-1, 0))) {
-            generators::generateLogSpiral(app.getPattern(), numPoints, logA, logB, logMaxAngle);
-            setPattern();
-        }
+        ch |= ImGui::SliderFloat("Max Angle##log", &logMaxAngle, 6.0f, 30.0f, "%.1f");
+        liveUpdate(ch, Gen::LogSpiral);
+        if (ImGui::Button("Generate Logarithmic", ImVec2(-1, 0))) runGenerator(Gen::LogSpiral);
     }
 
     //==========================================================================
     // KNOTS & 3D-STYLE
     //==========================================================================
     if (ImGui::CollapsingHeader("Knots & 3D-Style")) {
-        static int torusP = 2, torusQ = 3;
-
-        if (ImGui::Button("Helix", ImVec2(80, 0))) {
-            generators::generateHelix(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Helix", ImVec2(80, 0))) runGenerator(Gen::Helix);
         ImGui::SameLine();
-        if (ImGui::Button("Trefoil Knot", ImVec2(100, 0))) {
-            generators::generateTrefoilKnot(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Trefoil Knot", ImVec2(100, 0))) runGenerator(Gen::Trefoil);
 
+        bool ch = false;
         ImGui::Text("Torus Knot (p:q ratio):");
         ImGui::SetNextItemWidth(80);
-        ImGui::SliderInt("p##torus", &torusP, 1, 10);
+        ch |= ImGui::SliderInt("p##torus", &torusP, 1, 10);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(80);
-        ImGui::SliderInt("q##torus", &torusQ, 1, 10);
+        ch |= ImGui::SliderInt("q##torus", &torusQ, 1, 10);
+        liveUpdate(ch, Gen::TorusKnot);
         ImGui::SameLine();
-        if (ImGui::Button("Generate Torus Knot", ImVec2(-1, 0))) {
-            generators::generateTorusKnot(app.getPattern(), numPoints, torusP, torusQ);
-            setPattern();
-        }
+        if (ImGui::Button("Generate Torus Knot", ImVec2(-1, 0))) runGenerator(Gen::TorusKnot);
     }
 
     //==========================================================================
     // COMPLEX CURVES
     //==========================================================================
     if (ImGui::CollapsingHeader("Complex Curves")) {
-        static float hypoR = 5.0f, hypoR2 = 3.0f, hypoD = 5.0f;
-        static float epiR = 5.0f, epiR2 = 2.0f, epiD = 2.0f;
-
-        if (ImGui::Button("Butterfly", ImVec2(80, 0))) {
-            generators::generateButterfly(app.getPattern(), 2000);  // Needs more points
-            setPattern();
-        }
+        if (ImGui::Button("Butterfly", ImVec2(80, 0))) runGenerator(Gen::Butterfly);
         ImGui::SameLine();
-        if (ImGui::Button("Cardioid", ImVec2(80, 0))) {
-            generators::generateCardioid(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Cardioid", ImVec2(80, 0))) runGenerator(Gen::Cardioid);
         ImGui::SameLine();
-        if (ImGui::Button("Deltoid", ImVec2(80, 0))) {
-            generators::generateDeltoid(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Deltoid", ImVec2(80, 0))) runGenerator(Gen::Deltoid);
 
+        bool ch = false;
         ImGui::Text("Hypotrochoid (R, r, d):");
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("R##hypo", &hypoR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
+        ch |= ImGui::SliderFloat("R##hypo", &hypoR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("r##hypo", &hypoR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
+        ch |= ImGui::SliderFloat("r##hypo", &hypoR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("d##hypo", &hypoD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
-        if (ImGui::Button("Generate##hypo", ImVec2(-1, 0))) {
-            generators::generateHypotrochoid(app.getPattern(), numPoints, hypoR, hypoR2, hypoD);
-            setPattern();
-        }
+        ch |= ImGui::SliderFloat("d##hypo", &hypoD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
+        liveUpdate(ch, Gen::Hypotrochoid);
+        if (ImGui::Button("Generate##hypo", ImVec2(-1, 0))) runGenerator(Gen::Hypotrochoid);
 
+        ch = false;
         ImGui::Text("Epitrochoid (R, r, d):");
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("R##epi", &epiR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
+        ch |= ImGui::SliderFloat("R##epi", &epiR, 1.0f, 10.0f, "%.1f"); ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("r##epi", &epiR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
+        ch |= ImGui::SliderFloat("r##epi", &epiR2, 0.5f, 8.0f, "%.1f"); ImGui::SameLine();
         ImGui::SetNextItemWidth(60);
-        ImGui::SliderFloat("d##epi", &epiD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
-        if (ImGui::Button("Generate##epi", ImVec2(-1, 0))) {
-            generators::generateEpitrochoid(app.getPattern(), numPoints, epiR, epiR2, epiD);
-            setPattern();
-        }
+        ch |= ImGui::SliderFloat("d##epi", &epiD, 0.5f, 10.0f, "%.1f"); ImGui::SameLine();
+        liveUpdate(ch, Gen::Epitrochoid);
+        if (ImGui::Button("Generate##epi", ImVec2(-1, 0))) runGenerator(Gen::Epitrochoid);
     }
 
     //==========================================================================
     // SPECIAL SHAPES
     //==========================================================================
     if (ImGui::CollapsingHeader("Special Shapes")) {
-        if (ImGui::Button("Figure-8", ImVec2(80, 0))) {
-            generators::generateFigure8(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Figure-8", ImVec2(80, 0))) runGenerator(Gen::Figure8);
         ImGui::SameLine();
-        if (ImGui::Button("Infinity", ImVec2(80, 0))) {
-            generators::generateInfinity(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Infinity", ImVec2(80, 0))) runGenerator(Gen::Infinity);
         ImGui::SameLine();
-        if (ImGui::Button("Heart", ImVec2(80, 0))) {
-            generators::generateHeart(app.getPattern(), numPoints);
-            setPattern();
-        }
+        if (ImGui::Button("Heart", ImVec2(80, 0))) runGenerator(Gen::Heart);
     }
 
     //==========================================================================
     // WAVEFORMS
     //==========================================================================
     if (ImGui::CollapsingHeader("Waveforms")) {
-        static float waveFreq = 3.0f;
         ImGui::SetNextItemWidth(120);
-        ImGui::SliderFloat("Frequency##wave", &waveFreq, 1.0f, 10.0f);
+        // Frequency drives whichever of the three waveforms was last generated
+        if (ImGui::SliderFloat("Frequency##wave", &waveFreq, 1.0f, 10.0f)) {
+            if (activeGen == Gen::Square || activeGen == Gen::Sawtooth ||
+                activeGen == Gen::Triangle) {
+                runGenerator(activeGen);
+            }
+        }
 
-        if (ImGui::Button("Square Wave", ImVec2(100, 0))) {
-            generators::generateSquareWave(app.getPattern(), numPoints, waveFreq);
-            setPattern();
-        }
+        if (ImGui::Button("Square Wave", ImVec2(100, 0))) runGenerator(Gen::Square);
         ImGui::SameLine();
-        if (ImGui::Button("Sawtooth", ImVec2(100, 0))) {
-            generators::generateSawtoothWave(app.getPattern(), numPoints, waveFreq);
-            setPattern();
-        }
+        if (ImGui::Button("Sawtooth", ImVec2(100, 0))) runGenerator(Gen::Sawtooth);
         ImGui::SameLine();
-        if (ImGui::Button("Triangle", ImVec2(-1, 0))) {
-            generators::generateTriangleWave(app.getPattern(), numPoints, waveFreq);
-            setPattern();
-        }
+        if (ImGui::Button("Triangle", ImVec2(-1, 0))) runGenerator(Gen::Triangle);
     }
 
     ImGui::Separator();
@@ -1765,7 +1763,9 @@ void UIManager::renderGeneratorsPanel(App& app) {
             pattern.x.push_back(x * 0.9f);
             pattern.y.push_back(y * 0.9f);
         }
-        setPattern();
+        activeGen = Gen::None;    // Random result has no live parameters
+        m_3dShapeActive = false;
+        app.getAudioEngine().setPattern(pattern);
     }
 
     ImGui::End();
