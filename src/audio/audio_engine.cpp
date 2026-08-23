@@ -271,10 +271,14 @@ int AudioEngine::processAudio(float* output, unsigned long frameCount) {
         size_t startCycle = pos / patternSize;
         size_t endCycle = (pos + chunkSize - 1) / patternSize;
         if (endCycle > startCycle) {
-            m_fadeStep++;
+            // A chunk can span several whole cycles when the pattern is
+            // shorter than the chunk (256 samples) - count them all, or the
+            // sequencer's step timing runs long for small patterns.
+            uint32_t delta = static_cast<uint32_t>(endCycle - startCycle);
+            m_fadeStep += delta;
             // Audio thread is the only writer; relaxed is sufficient
             m_patternCycleCount.store(
-                m_patternCycleCount.load(std::memory_order_relaxed) + 1,
+                m_patternCycleCount.load(std::memory_order_relaxed) + delta,
                 std::memory_order_relaxed);
         }
 

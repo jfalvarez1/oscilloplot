@@ -265,9 +265,16 @@ void UIManager::doSavePattern(App& app) {
     ).result();
 
     if (path.empty()) return;
-    path = ensureExtension(path, ".txt");
 
-    bool ok = (fileExtension(path) == ".osc")
+    // Decide the format from the extension the user actually typed BEFORE
+    // defaulting: some pickers (GTK/Zenity) return a bare name even when the
+    // .osc filter is selected, and appending .txt first would silently
+    // override that choice.
+    std::string ext = fileExtension(path);
+    bool binary = (ext == ".osc");
+    if (ext.empty()) path += ".txt";
+
+    bool ok = binary
         ? FileSaver::saveBinaryFile(path, pattern)
         : FileSaver::saveTextFile(path, pattern);
 
@@ -443,10 +450,20 @@ void UIManager::applyStyle() {
 void UIManager::placeWindow(float x, float y, float w, float h) {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGuiCond cond = (m_layoutResetFrames > 0) ? ImGuiCond_Always : ImGuiCond_FirstUseEver;
+
+    // WorkPos only accounts for the main menu bar from the second frame on
+    // (side bars adjust the work area for the NEXT frame). On the first frame
+    // WorkPos.y is still 0, and a FirstUseEver position taken then would sit
+    // on top of - and permanently hide - the menu bar. Clamp the top edge to
+    // at least one frame height (exactly the menu bar's height).
+    float top = std::max(vp->WorkPos.y, vp->Pos.y + ImGui::GetFrameHeight());
+    float availW = vp->WorkSize.x;
+    float availH = vp->Pos.y + vp->Size.y - top;
+
     ImGui::SetNextWindowPos(
-        ImVec2(vp->WorkPos.x + x * vp->WorkSize.x, vp->WorkPos.y + y * vp->WorkSize.y), cond);
+        ImVec2(vp->WorkPos.x + x * availW, top + y * availH), cond);
     ImGui::SetNextWindowSize(
-        ImVec2(w * vp->WorkSize.x, h * vp->WorkSize.y), cond);
+        ImVec2(w * availW, h * availH), cond);
 }
 
 //==============================================================================
@@ -599,6 +616,8 @@ void UIManager::sequencerLoad() {
         std::getline(f, nameRest);
         size_t begin = nameRest.find_first_not_of(" \t");
         if (begin != std::string::npos) nameRest = nameRest.substr(begin);
+        // Trim trailing CR from CRLF files read in text mode on non-Windows
+        if (!nameRest.empty() && nameRest.back() == '\r') nameRest.pop_back();
         snprintf(step.name, sizeof(step.name), "%s",
                  nameRest.empty() ? "Step" : nameRest.c_str());
 
@@ -2751,6 +2770,7 @@ void UIManager::render3DShapeGenerator(App& app) {
     int shapeIdx = static_cast<int>(m_shape3D.shapeType);
     if (ImGui::Combo("Shape", &shapeIdx, shapes, IM_ARRAYSIZE(shapes))) {
         m_shape3D.shapeType = static_cast<Shape3DState::ShapeType>(shapeIdx);
+        m_3dShapeActive = true;   // Re-claim the pattern from other sources
         generate3DShapePattern(app);
     }
 
@@ -2940,7 +2960,7 @@ void UIManager::render3DShapeGenerator(App& app) {
 
     ImGui::Separator();
 
-    if (rotChanged && !m_shape3D.animate) {
+    if (rotChanged) {
         m_3dShapeActive = true;  // Re-enable 3D shape as active source
         generate3DShapePattern(app);
     }
