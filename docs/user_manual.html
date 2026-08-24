@@ -1014,7 +1014,7 @@
         <span class="brand-label top-right">HIGH PERFORMANCE C++</span>
         <h1>OSCILLOPLOT</h1>
         <div class="subtitle">XY AUDIO OSCILLOSCOPE GENERATOR</div>
-        <div class="version">// C++ EDITION - USER MANUAL v1.0.2 //</div>
+        <div class="version">// C++ EDITION - USER MANUAL v1.1.0 //</div>
         <div class="waveform-indicator">
             <svg viewBox="0 0 100 30">
                 <path d="M0,15 Q12.5,5 25,15 T50,15 T75,15 T100,15"></path>
@@ -1032,8 +1032,14 @@
                 <li><a href="#quick-start">Quick Start</a></li>
                 <li><a href="#interface">Interface Overview</a></li>
                 <li><a href="#phosphor-display">Phosphor Display</a></li>
+                <li><a href="#file-io">Files &amp; Export</a></li>
                 <li><a href="#pattern-generators">Pattern Generators</a></li>
                 <li><a href="#3d-shapes">3D Shape Generator</a></li>
+                <li><a href="#obj-import">OBJ Model Import</a></li>
+                <li><a href="#sequencer">Sequencer</a></li>
+                <li><a href="#sound-pad">Sound Pad</a></li>
+                <li><a href="#drawing-canvas">Drawing Canvas</a></li>
+                <li><a href="#vectorizer">Image Vectorizer</a></li>
                 <li><a href="#effects">Effects Reference</a></li>
                 <li><a href="#harmonics-guide">Sum of Harmonics</a></li>
                 <li><a href="#audio-params">Audio Parameters</a></li>
@@ -1063,7 +1069,15 @@
                 </div>
                 <div class="feature-card new-cpp">
                     <h4>3D Shape Generator</h4>
-                    <p>19 shapes including Mobius strip, Klein bottle, DNA helix, springs, stars, and custom 3D text rendering!</p>
+                    <p>20 sources including Mobius strip, Klein bottle, DNA helix, springs, stars, custom 3D text, and imported OBJ models.</p>
+                </div>
+                <div class="feature-card new-cpp">
+                    <h4>Sequencer</h4>
+                    <p>Chain patterns into a timed sequence with per-step cycle counts, save it as .oseq, and export the whole thing as one WAV.</p>
+                </div>
+                <div class="feature-card new-cpp">
+                    <h4>Image Vectorizer</h4>
+                    <p>Turn any image into a traceable outline with 13 detection modes for photos, people, artwork and graphics.</p>
                 </div>
                 <div class="feature-card">
                     <h4>Audio Output</h4>
@@ -1071,7 +1085,11 @@
                 </div>
                 <div class="feature-card">
                     <h4>Multiple Generators</h4>
-                    <p>Sum of Harmonics with frequency sweep, Archimedean Spirals, test patterns, and freehand drawing.</p>
+                    <p>Lissajous, spirals, roses, knots, trochoids, waveforms and more - every parameter updates the scope live as you drag it.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Files &amp; Export</h4>
+                    <p>Load and save patterns as text, binary or MATLAB arrays, and export stereo WAV for a real oscilloscope.</p>
                 </div>
                 <div class="feature-card">
                     <h4>15+ Effects</h4>
@@ -1112,7 +1130,7 @@
                 <li><strong>Phosphor Presets</strong> - P31, P1 (pure green), P7 (blue-white), Amber</li>
             </ul>
 
-            <h4>3D Shape Generator (19 Shapes + 3D Text)</h4>
+            <h4>3D Shape Generator (19 Built-in Shapes + 3D Text)</h4>
             <p>Project and animate 3D wireframe shapes:</p>
             <ul>
                 <li><strong>Platonic Solids</strong> - Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron</li>
@@ -1139,8 +1157,50 @@
                 <li><strong>Beam Controls</strong> - Width, focus, spot size</li>
                 <li><strong>Decay Settings</strong> - Time constant, exponent, trail samples</li>
                 <li><strong>Glow Controls</strong> - Intensity, radius, falloff</li>
-                <li><strong>CRT Effects</strong> - Curvature, vignette, noise, scanlines</li>
                 <li><strong>Graticule</strong> - Toggle grid with adjustable opacity</li>
+            </ul>
+            <div class="note">
+                The CRT post-effects (curvature, vignette, analog noise, scanlines) are not yet
+                implemented in the renderer, so their controls are not shown.
+            </div>
+
+            <h3>New in v1.1.0</h3>
+
+            <h4>Working File Menu</h4>
+            <p>Load, Save and Export WAV are implemented, with keyboard shortcuts and a status
+               readout in the menu bar. See <a href="#file-io">Files &amp; Export</a>.</p>
+
+            <h4><a href="#obj-import">OBJ Model Import</a></h4>
+            <p>Trace any Wavefront <code>.obj</code> mesh as a wireframe, auto-centred and scaled,
+               with an adjustable edge cap for dense models.</p>
+
+            <h4><a href="#sequencer">Pattern Sequencer</a></h4>
+            <p>Chain captured patterns with per-step cycle counts, reorder and rename them, save as
+               <code>.oseq</code>, and export the whole sequence as a single WAV.</p>
+
+            <h4>Bake Rotation</h4>
+            <p>Freeze a rotating 3D shape's animation into one long pattern so exported audio
+               actually rotates.</p>
+
+            <h4>Live Generator Parameters</h4>
+            <p>Once a generator is active, its sliders redraw the scope instantly - no button press
+               between adjustments.</p>
+
+            <h4>Interface Overhaul</h4>
+            <ul>
+                <li>Coherent dark theme with a single phosphor-green accent</li>
+                <li>Layout scales to the window size, with <strong>View &rarr; Reset Layout</strong></li>
+                <li>Drawing Canvas gained per-stroke undo; Clear Canvas now confirms first</li>
+                <li>Controls panel leads with Play, with units and tooltips on every slider</li>
+                <li>Application icon, <strong>Help &rarr; About</strong>, and a version-stamped executable</li>
+            </ul>
+
+            <h4>Runs on More Machines</h4>
+            <ul>
+                <li>Single self-contained exe - no DLLs, no VC++ Redistributable</li>
+                <li>SSE2 baseline instead of AVX2, so pre-2013 CPUs are supported</li>
+                <li>OpenGL falls back 3.3 &rarr; 3.2 &rarr; 3.0 instead of demanding 3.3</li>
+                <li>Missing audio device no longer prevents startup</li>
             </ul>
         </section>
 
@@ -1149,7 +1209,17 @@
             <h2>// Installation //</h2>
 
             <h3>Pre-Built Binaries (Recommended)</h3>
-            <p>Download the latest release for your platform from the <a href="https://github.com/jfalvarez1/oscilloplot/releases">Releases page</a>.</p>
+            <p>Download the latest release from the <a href="https://github.com/jfalvarez1/oscilloplot/releases">Releases page</a>.</p>
+            <div class="new-feature">
+                The Windows build is a <strong>single self-contained <code>oscilloplot.exe</code></strong>.
+                There are no DLLs to copy and no Visual C++ Redistributable to install - extract and run.
+            </div>
+            <p>It targets a broad range of machines deliberately:</p>
+            <ul>
+                <li><strong>SSE2 instruction baseline</strong> - runs on any CPU capable of Windows 11, including unsupported-hardware installs on older processors</li>
+                <li><strong>OpenGL 3.3 &rarr; 3.2 &rarr; 3.0 fallback</strong> - works on older integrated graphics that only advertise 3.0</li>
+                <li><strong>Audio is optional</strong> - with no output device the app still opens for visual work and file export</li>
+            </ul>
 
             <h3>Building from Source</h3>
 
@@ -1165,15 +1235,31 @@
 git clone https://github.com/jfalvarez1/oscilloplot.git
 cd oscilloplot
 
-# Install dependencies with vcpkg
-vcpkg install sdl2 imgui implot portaudio libsndfile glm
+# Fetch vendored ImGui / ImPlot / PocketFFT
+./setup_externals.ps1
 
-# Configure and build
+# Configure and build. vcpkg reads vcpkg.json and installs dependencies on the
+# first configure; the static triplet is selected automatically.
 cmake -B build -DCMAKE_TOOLCHAIN_FILE=[vcpkg-root]/scripts/buildsystems/vcpkg.cmake
 cmake --build build --config Release
 
 # Run
-./build/Release/oscilloplot.exe</code></pre>
+./build/Release/oscilloplot.exe
+
+# Package a release zip into dist/
+./make_release.ps1</code></pre>
+
+            <h4>Build Options</h4>
+            <table>
+                <thead>
+                    <tr><th>Option</th><th>Default</th><th>Effect</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>OSCILLOPLOT_STANDALONE</code></td><td>ON</td><td>Single self-contained exe (static deps and CRT, no console window). OFF links against DLLs.</td></tr>
+                    <tr><td><code>OSCILLOPLOT_SIMD_LEVEL</code></td><td>SSE2</td><td>SIMD baseline: <code>SSE2</code>, <code>AVX</code> or <code>AVX2</code>. AVX2 is faster but requires a 2013-or-newer CPU.</td></tr>
+                    <tr><td><code>OSCILLOPLOT_ENABLE_LTO</code></td><td>ON</td><td>Link-time optimization on Release builds</td></tr>
+                </tbody>
+            </table>
 
             <h4>Linux</h4>
             <pre><code># Install dependencies (Ubuntu/Debian)
@@ -1225,8 +1311,12 @@ cmake --build build
                     <tr><th>Key</th><th>Action</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><kbd>Space</kbd></td><td>Play / Stop audio</td></tr>
-                    <tr><td><kbd>Escape</kbd></td><td>Exit application</td></tr>
+                    <tr><td><kbd>Space</kbd></td><td>Play / Stop audio (ignored while typing in a text field)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>Load pattern</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save pattern</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Export WAV</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo stroke (Drawing Canvas focused)</td></tr>
+                    <tr><td><kbd>Alt</kbd> + <kbd>F4</kbd></td><td>Exit application</td></tr>
                 </tbody>
             </table>
 
@@ -1266,14 +1356,33 @@ cmake --build build
             </ul>
 
             <h3>Optional Panels</h3>
+            <p>All of these live under the <strong>View</strong> menu:</p>
             <ul>
                 <li><strong>Effects Panel</strong> - Detailed effect configuration</li>
                 <li><strong>Generators Panel</strong> - Pattern creation tools</li>
                 <li><strong>Sum of Harmonics</strong> - Lissajous figure builder</li>
-                <li><strong>3D Shape Generator</strong> - 3D wireframe projections</li>
-                <li><strong>Display Settings</strong> - CRT simulation parameters</li>
+                <li><strong>3D Shape Generator</strong> - 3D wireframe projections and OBJ model import</li>
+                <li><strong>Sequencer</strong> - Chain patterns into a timed sequence</li>
+                <li><strong>Sound Pad</strong> - 16-step XY sequencer grid</li>
                 <li><strong>Drawing Canvas</strong> - Freehand pattern input</li>
+                <li><strong>Image Vectorizer</strong> - Convert images to traceable outlines</li>
+                <li><strong>Display Settings</strong> - CRT simulation parameters</li>
             </ul>
+
+            <div class="note">
+                <strong>Reset Layout</strong> (View menu) restores every open window to its default
+                position. Window positions scale with the size of the application window, so the
+                layout works on any monitor.
+            </div>
+
+            <h3>One Pattern, Many Sources</h3>
+            <p>
+                Every generator, the Drawing Canvas, the Sound Pad, the Sequencer, the 3D Shape
+                Generator and the Image Vectorizer all write to the <em>same</em> pattern buffer.
+                Whichever one you used last owns the display, and the others stop overwriting it.
+                The 3D Shape Generator's animation, for example, pauses claiming the pattern the
+                moment you draw a stroke or load a file.
+            </p>
         </section>
 
         <!-- Phosphor Display -->
@@ -1413,23 +1522,102 @@ cmake --build build
             </div>
         </section>
 
+        <!-- Files and Export -->
+        <section id="file-io">
+            <h2>// Files &amp; Export //</h2>
+
+            <p>Everything below lives in the <strong>File</strong> menu.</p>
+
+            <h3>Load Pattern <kbd>Ctrl</kbd>+<kbd>O</kbd></h3>
+            <p>The format is chosen from the file's extension:</p>
+            <table>
+                <thead>
+                    <tr><th>Extension</th><th>Format</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>.txt</code> <code>.csv</code> <code>.dat</code></td><td>Text - one <code>X, Y</code> pair per line; <code>#</code> starts a comment</td></tr>
+                    <tr><td><code>.osc</code></td><td>Oscilloplot binary - exact round-trip, no rescaling</td></tr>
+                    <tr><td><code>.m</code></td><td>MATLAB-style script - <code>x = [...]</code> and <code>y = [...]</code> arrays are extracted</td></tr>
+                </tbody>
+            </table>
+
+            <div class="note">
+                Text and MATLAB files are normalised to fill the display when loaded. The binary
+                <code>.osc</code> format preserves your exact values, so use it if amplitude matters.
+            </div>
+
+            <h3>Save Pattern <kbd>Ctrl</kbd>+<kbd>S</kbd></h3>
+            <p>
+                Writes text or <code>.osc</code> binary. Type the extension you want; if you leave it
+                off, the file is saved as text.
+            </p>
+
+            <h3>Export WAV <kbd>Ctrl</kbd>+<kbd>E</kbd></h3>
+            <p>
+                Renders the current pattern to a stereo WAV - left channel is X, right is Y - at the
+                output rate shown in the Controls panel. The file's length comes from the
+                <strong>Export Length</strong> slider; the pattern is looped as many times as needed
+                to fill it.
+            </p>
+
+            <div class="tip">
+                To export a <em>rotating</em> 3D shape, use <strong>Bake Rotation</strong> in the 3D
+                Shape Generator first. Live animation is redrawn each UI frame, so a plain export
+                would capture only one orientation.
+            </div>
+
+            <div class="note">
+                Very long exports are capped so the render cannot exhaust memory; if that happens the
+                status line says the export was truncated.
+            </div>
+
+            <h3>Status Messages</h3>
+            <p>
+                Results appear briefly at the right of the menu bar - green for success, red for a
+                problem - then fade. If a machine has no audio output device, the menu bar shows a
+                persistent <strong>[No audio device - preview only]</strong> notice; the visualiser
+                and all file export still work.
+            </p>
+        </section>
+
         <!-- Pattern Generators -->
         <section id="pattern-generators">
             <h2>// Pattern Generators //</h2>
 
             <p>Oscilloplot includes multiple ways to create patterns:</p>
 
-            <h3>Quick Generators (Control Panel)</h3>
+            <h3>Generators Panel</h3>
+            <p>
+                The Generators panel groups every parametric shape into collapsing sections.
+                A shared <strong>Points</strong> slider at the top sets the resolution.
+            </p>
             <table>
                 <thead>
-                    <tr><th>Button</th><th>Description</th></tr>
+                    <tr><th>Section</th><th>Shapes</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><strong>Sine Wave</strong></td><td>Simple sine wave test pattern</td></tr>
-                    <tr><td><strong>Circle</strong></td><td>360-point circular pattern</td></tr>
-                    <tr><td><strong>Lissajous</strong></td><td>Classic 3:2 Lissajous figure</td></tr>
+                    <tr><td><strong>Basic Shapes</strong></td><td>Circle, Ellipse, Sine Wave</td></tr>
+                    <tr><td><strong>Lissajous Curves</strong></td><td>A:B ratio with phase, plus 3:2, 3:2(+90), 5:4 and 7:5 presets</td></tr>
+                    <tr><td><strong>Stars &amp; Flowers</strong></td><td>Star, Flower, Rose Curve</td></tr>
+                    <tr><td><strong>Spirals</strong></td><td>Archimedean, Logarithmic</td></tr>
+                    <tr><td><strong>Knots &amp; 3D-Style</strong></td><td>Helix, Trefoil Knot, Torus Knot (p:q)</td></tr>
+                    <tr><td><strong>Complex Curves</strong></td><td>Butterfly, Cardioid, Deltoid, Hypotrochoid, Epitrochoid</td></tr>
+                    <tr><td><strong>Special Shapes</strong></td><td>Figure-8, Infinity, Heart</td></tr>
+                    <tr><td><strong>Waveforms</strong></td><td>Square, Sawtooth, Triangle</td></tr>
                 </tbody>
             </table>
+
+            <div class="new-feature">
+                <strong>Live parameters.</strong> Once you press a generator's button it becomes the
+                active generator, and from then on every one of its sliders - and the shared Points
+                slider - redraws the scope instantly as you drag. No need to press the button again.
+            </div>
+
+            <p>
+                Pressing a different generator's button hands the live sliders to that one instead.
+                Loading a file, drawing, or capturing a sequencer step releases the generator, so
+                those patterns are never overwritten by a stray slider move.
+            </p>
 
             <h3>Advanced Generators (View Menu)</h3>
 
@@ -1437,13 +1625,23 @@ cmake --build build
             <p>Create complex Lissajous figures by combining multiple sine/cosine terms. Features phase and frequency sweep for animation.</p>
 
             <h4>3D Shape Generator</h4>
-            <p>Project rotating 3D wireframe shapes to 2D. Includes platonic solids, torus, sphere, and mathematical knots.</p>
+            <p>Project rotating 3D wireframe shapes to 2D. Platonic solids, torus, sphere, mathematical
+               knots, 3D text, and <a href="#obj-import">imported OBJ models</a>.</p>
 
-            <h4>Drawing Canvas</h4>
-            <p>Draw patterns freehand with your mouse. The strokes are converted to XY coordinates.</p>
+            <h4><a href="#drawing-canvas">Drawing Canvas</a></h4>
+            <p>Draw patterns freehand with your mouse, with per-stroke undo.</p>
 
-            <h4>Sound Pad</h4>
-            <p>16-step grid sequencer for creating rhythmic, stepping patterns.</p>
+            <h4><a href="#sound-pad">Sound Pad</a></h4>
+            <p>16-step XY sequencer grid for rhythmic, stepping patterns.</p>
+
+            <h4><a href="#sequencer">Sequencer</a></h4>
+            <p>Chain captured patterns into a timed sequence, save it, and export the whole thing as one WAV.</p>
+
+            <h4><a href="#vectorizer">Image Vectorizer</a></h4>
+            <p>Convert an image into a traceable outline with 13 detection modes.</p>
+
+            <h4>Random Harmonics</h4>
+            <p>One-click random two-axis harmonic pattern - useful as a starting point.</p>
         </section>
 
         <!-- 3D Shape Generator -->
@@ -1454,7 +1652,7 @@ cmake --build build
                 Project and animate 3D wireframe shapes onto the oscilloscope display. Now with 19 shapes plus 3D text rendering!
             </div>
 
-            <h3>Available Shapes (19 Total)</h3>
+            <h3>Available Shapes (20 Sources)</h3>
             <table>
                 <thead>
                     <tr><th>Category</th><th>Shapes</th><th>Description</th></tr>
@@ -1494,6 +1692,11 @@ cmake --build build
                         <td><strong>Text</strong></td>
                         <td>3D Text</td>
                         <td>Custom text as wireframe letters</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Imported</strong></td>
+                        <td>OBJ Model</td>
+                        <td>Any Wavefront <code>.obj</code> mesh - see <a href="#obj-import">OBJ Model Import</a></td>
                     </tr>
                 </tbody>
             </table>
@@ -1598,6 +1801,241 @@ cmake --build build
 
             <div class="tip">
                 For 3D text, try setting Depth to 0.3 with "Connect Faces" enabled, then animate with Y Speed = 0.5 for a dramatic spinning text effect!
+            </div>
+
+            <h3>Bake Rotation</h3>
+            <p>
+                Live animation regenerates the pattern every UI frame, so an exported WAV would only
+                ever capture a single orientation. <strong>Bake Rotation</strong> freezes a number of
+                animation frames into one long pattern that plays - and exports - as a genuinely
+                rotating shape.
+            </p>
+            <ol class="steps">
+                <li>Set the rotation speeds you want; each baked frame advances by them</li>
+                <li>Open <strong>Bake Rotation</strong> and choose a frame count</li>
+                <li>Press <strong>Bake to Pattern</strong></li>
+            </ol>
+            <p>
+                Baking stops the live animation and hands the pattern over, so the result stays put.
+                The starting orientation is restored afterwards, so baking twice gives the same
+                result. The pattern buffer holds 65,536 points; if the frame count would exceed it,
+                baking stops early and the status line reports how many frames made it.
+            </p>
+            <div class="tip">
+                At the default 500-point resolution roughly 130 frames fit. For one smooth
+                revolution, try 120 frames with a rotation speed of 3 deg/frame.
+            </div>
+        </section>
+
+        <!-- OBJ Model Import -->
+        <section id="obj-import">
+            <h2>// OBJ Model Import //</h2>
+
+            <p>
+                The 3D Shape Generator can trace any Wavefront <code>.obj</code> mesh as a wireframe,
+                not just the built-in shapes. Choose <strong>OBJ Model</strong> from the Shape
+                dropdown, then press <strong>Browse...</strong> and pick a file.
+            </p>
+
+            <h3>What Gets Imported</h3>
+            <ul>
+                <li>Vertex positions (<code>v</code>) and faces (<code>f</code>); polylines (<code>l</code>) are traced too</li>
+                <li>Face element forms <code>v</code>, <code>v/vt</code>, <code>v//vn</code> and <code>v/vt/vn</code> are all accepted</li>
+                <li>Negative (relative) indices work</li>
+                <li>Edges shared between faces are drawn once, not twice</li>
+                <li>Normals, texture coordinates and materials are ignored - only geometry matters here</li>
+            </ul>
+
+            <p>
+                The model is automatically centred on its bounding box and scaled so its largest
+                dimension matches the built-in shapes, so you never have to pre-scale a mesh.
+            </p>
+
+            <h3>Max Edges</h3>
+            <p>
+                A detailed mesh can contain tens of thousands of edges, which traces far too slowly
+                to look like anything. The <strong>Max Edges</strong> slider caps how many are drawn,
+                sampling evenly across the model so the whole shape stays represented. The panel
+                reports both counts, e.g. <em>"2000 of 47230 edges"</em>. The cap is applied on
+                release, and the file is re-read each time so thinning never compounds.
+            </p>
+
+            <div class="tip">
+                Low-poly models look best. If a mesh reads as a solid blob, lower Max Edges until the
+                silhouette becomes readable, or use a decimated export from your 3D tool.
+            </div>
+
+            <div class="note">
+                A file containing only points (no faces or lines) cannot be traced and is rejected
+                with an explanation, as are unreadable or malformed files.
+            </div>
+        </section>
+
+        <!-- Sequencer -->
+        <section id="sequencer">
+            <h2>// Sequencer //</h2>
+
+            <p>
+                The Sequencer (<strong>View &rarr; Sequencer</strong>) chains patterns together over
+                time. Each <em>step</em> holds a complete captured pattern plus a cycle count that
+                controls how long it plays before the sequence advances.
+            </p>
+
+            <h3>Building a Sequence</h3>
+            <ol class="steps">
+                <li><strong>Make a pattern</strong> with any generator, the canvas, a 3D shape, or the vectorizer</li>
+                <li><strong>Press "+ Capture Current Pattern"</strong> to add it as a step</li>
+                <li><strong>Repeat</strong> for as many steps as you want</li>
+                <li><strong>Set each step's cycle count</strong> - drag the "200 cyc" field; hover it to see the duration in seconds</li>
+                <li><strong>Press "Play Sequence"</strong></li>
+            </ol>
+
+            <h3>Step Controls</h3>
+            <table>
+                <thead>
+                    <tr><th>Control</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Name field</strong></td><td>Rename the step so the list stays readable</td></tr>
+                    <tr><td><strong>cyc field</strong></td><td>How many pattern repetitions before advancing</td></tr>
+                    <tr><td><strong>View</strong></td><td>Load that step onto the scope without starting the sequence</td></tr>
+                    <tr><td><strong>^ / v</strong></td><td>Move the step earlier or later</td></tr>
+                    <tr><td><strong>X</strong></td><td>Delete the step</td></tr>
+                </tbody>
+            </table>
+
+            <p>
+                A <span style="color:#5f5">&gt;</span> marker shows which step is currently playing.
+                Reordering or deleting during playback keeps tracking the right step.
+                <strong>Loop</strong> wraps back to step 1 at the end; with it off, the sequence stops
+                and says so.
+            </p>
+
+            <h3>Saving and Exporting</h3>
+            <ul>
+                <li><strong>Save... / Load...</strong> - store the whole sequence as an <code>.oseq</code> file (a plain-text format holding each step's name, cycle count and points)</li>
+                <li><strong>Export WAV...</strong> - render the entire sequence to one stereo WAV, step by step</li>
+            </ul>
+
+            <div class="note">
+                Step timing is driven by the audio engine's playback clock, so the Sequencer needs a
+                working audio output device. With no device available it will tell you rather than
+                appearing to do nothing.
+            </div>
+        </section>
+
+        <!-- Sound Pad -->
+        <section id="sound-pad">
+            <h2>// Sound Pad //</h2>
+
+            <p>
+                The Sound Pad (<strong>View &rarr; Sound Pad</strong>) is a 16-step XY sequencer.
+                Each cell holds one <strong>point in XY space</strong>, and the beam walks from active
+                point to active point in order, wrapping back to the first. The shape you see is the
+                polygon connecting your active steps.
+            </p>
+
+            <h3>Two Interactions Per Cell</h3>
+            <table>
+                <thead>
+                    <tr><th>Gesture</th><th>Effect</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Click</strong> a cell</td><td>Switch that step on (green) or off (grey)</td></tr>
+                    <tr><td><strong>Drag</strong> on a cell</td><td>Move that step's point; the two numbers on the button are its X,Y</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Presets</h3>
+            <ul>
+                <li><strong>Circle Preset</strong> - all 16 points on a circle, every step active (this is also the startup state)</li>
+                <li><strong>Activate All</strong> - switch every step on, keeping current positions</li>
+                <li><strong>Grid Layout</strong> - snap each point to its own cell position, turning the pad into a spatial XY surface</li>
+                <li><strong>Clear All</strong> - switch everything off; positions are kept so cells still draw when you switch them back on</li>
+            </ul>
+
+            <p>
+                Changes apply to the scope immediately - no button press needed. The
+                <strong>Generate Pattern</strong> button is still there to re-apply the pad's output
+                if another source has taken over the display.
+            </p>
+
+            <div class="tip">
+                With all 16 steps active the traced shape is a 16-sided polygon, which reads as
+                almost circular. Switch most steps off to see the structure: three active steps give
+                a triangle, four a quadrilateral, and so on.
+            </div>
+        </section>
+
+        <!-- Drawing Canvas -->
+        <section id="drawing-canvas">
+            <h2>// Drawing Canvas //</h2>
+
+            <p>
+                Draw patterns freehand (<strong>View &rarr; Drawing Canvas</strong>). Click and drag
+                inside the canvas; releasing the mouse finishes a stroke. Multi-stroke drawings are
+                supported - the beam jumps between strokes.
+            </p>
+
+            <table>
+                <thead>
+                    <tr><th>Control</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Smoothing</strong></td><td>How much each new point is averaged toward the previous one</td></tr>
+                    <tr><td><strong>Undo Stroke</strong> (<kbd>Ctrl</kbd>+<kbd>Z</kbd>)</td><td>Remove the most recent stroke</td></tr>
+                    <tr><td><strong>Clear Canvas</strong></td><td>Delete everything (asks first - a full clear cannot be undone)</td></tr>
+                    <tr><td><strong>Use as Pattern</strong></td><td>Send the drawing to the oscilloscope</td></tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                Closed shapes sound and look best on a real scope. Ending a stroke near where it
+                started avoids a hard jump in the audio.
+            </div>
+        </section>
+
+        <!-- Image Vectorizer -->
+        <section id="vectorizer">
+            <h2>// Image Vectorizer //</h2>
+
+            <p>
+                The Image Vectorizer (<strong>View &rarr; Image Vectorizer</strong>) converts a
+                bitmap into a traceable outline. Load an image, pick the mode that matches what it
+                is, press <strong>Process Image</strong>, then <strong>Apply to Oscilloscope</strong>.
+            </p>
+
+            <h3>Detection Modes</h3>
+            <table>
+                <thead>
+                    <tr><th>Group</th><th>Modes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Photos</strong></td><td>General Photo, Portrait / Face, High Detail</td></tr>
+                    <tr><td><strong>People</strong></td><td>Face Focus, Headshot / Bust, Full Body, Artistic Portrait</td></tr>
+                    <tr><td><strong>Artwork</strong></td><td>Cartoon / Anime, Line Art / Sketch, Pixel Art</td></tr>
+                    <tr><td><strong>Graphics</strong></td><td>Logo / Icon, Document / Text, Silhouette</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Tuning</h3>
+            <ul>
+                <li><strong>Preprocessing</strong> - blur, contrast and brightness before detection</li>
+                <li><strong>Detection Parameters</strong> - edge thresholds; the people modes add Face Emphasis, Background Simplify and Detail Emphasis</li>
+                <li><strong>Contour Processing</strong> - how detected outlines are simplified and joined</li>
+                <li><strong>Output</strong> - point count and ordering of the final path</li>
+            </ul>
+
+            <p>
+                <strong>Detail Emphasis</strong> controls how strongly the importance mask (skin and
+                detected detail) lowers the edge thresholds, keeping more line work in the areas that
+                matter. Set it to 0 to ignore the mask entirely.
+            </p>
+
+            <div class="tip">
+                High-contrast images with clear outlines vectorize best. If the result is a tangle,
+                try Silhouette or Logo / Icon mode, or raise the thresholds under Detection
+                Parameters.
             </div>
         </section>
 
@@ -1811,10 +2249,23 @@ cmake --build build
 
             <h3>No Audio Output</h3>
             <ul>
-                <li>Check system audio output device is set correctly</li>
-                <li>Verify volume is not muted</li>
-                <li>Try reducing the playback multiplier if sample rate is too high for your sound card</li>
+                <li>Check the menu bar - <strong>[No audio device - preview only]</strong> means no output device could be opened at all</li>
+                <li>Check the system audio output device is set correctly and not muted</li>
+                <li>Try reducing the Multiplier if the resulting rate is too high for your sound card</li>
             </ul>
+
+            <h3>The Sequencer Does Nothing</h3>
+            <ul>
+                <li>Step timing is driven by the audio clock, so it needs a working output device - the status line says so if one is missing</li>
+                <li>Capture at least one step before pressing Play Sequence</li>
+            </ul>
+
+            <h3>A Panel's Output Disappears Immediately</h3>
+            <p>
+                All pattern sources share one buffer, and the most recent one wins. If a shape you
+                generated is replaced by a spinning 3D shape, the 3D generator has reclaimed the
+                pattern - use that panel's controls, or generate again from the panel you want.
+            </p>
 
             <h3>Display Looks Wrong</h3>
             <ul>
@@ -1831,11 +2282,14 @@ cmake --build build
                 <li>Adjust audio output volume</li>
             </ul>
 
-            <h3>Application Crashes on Startup</h3>
+            <h3>Application Will Not Start</h3>
             <ul>
-                <li>Ensure your GPU drivers are up to date (OpenGL 3.3 required)</li>
-                <li>Check that all DLL dependencies are present (Windows)</li>
-                <li>Try running from command line to see error messages</li>
+                <li>If a dialog says <strong>OpenGL 3.0 required</strong>, no graphics driver is installed and
+                    Windows is falling back to the Basic Display Adapter, which only offers OpenGL 1.1.
+                    Installing the GPU vendor's driver resolves it. Remote Desktop sessions and some
+                    virtual machines have the same limitation.</li>
+                <li>Otherwise, make sure your GPU drivers are up to date</li>
+                <li>Run from a command line to see any diagnostic output</li>
             </ul>
 
             <h3>Low Frame Rate</h3>

@@ -43,13 +43,21 @@ step 2 with the phosphor beam tracing a circle:
   - 13 specialized detection modes for different image types
   - Smart people detection with face emphasis
   - Works with photos, artwork, cartoons, logos, and more
-- **Multiple pattern generators**:
-  - Sine waves, circles, Lissajous curves
-  - Hearts, stars, spirals
-  - Sum of harmonics with frequency/phase sweep
+- **Multiple pattern generators** with **live parameters** - once a generator is
+  active, every one of its sliders redraws the scope instantly as you drag:
+  - Basic shapes: circle, ellipse, sine wave
+  - Lissajous curves with A:B ratio, phase, and 3:2 / 5:4 / 7:5 presets
+  - Stars, flowers, rose curves
+  - Archimedean and logarithmic spirals
+  - Helix, trefoil knot, torus knot (p:q)
+  - Butterfly, cardioid, deltoid, hypotrochoid, epitrochoid
+  - Figure-8, infinity, heart
+  - Square, sawtooth and triangle waveforms
+  - Sum of harmonics with frequency/phase sweep (up to 8 terms per axis)
   - Random harmonics
-  - Freehand drawing canvas
-  - Sound pad grid
+  - **Drawing canvas** - freehand strokes with per-stroke undo (Ctrl+Z)
+  - **Sound pad** - 16-step XY sequencer; click a cell to toggle its step,
+    drag it to move its point, with circle/grid presets
 - **3D Shape Generator** with 20 sources:
   - Platonic solids: Cube, Tetrahedron, Octahedron, Icosahedron, Dodecahedron
   - Curved surfaces: Sphere, Torus, Cylinder, Cone
@@ -81,8 +89,14 @@ step 2 with the phosphor beam tracing a circle:
     or MATLAB-style `.m` scripts
   - Save patterns as text or `.osc` binary
   - Export stereo WAV (left = X, right = Y) at the configured rate and duration
-  - Import Wavefront `.obj` meshes
+  - Import Wavefront `.obj` meshes; save/load sequences as `.oseq`
+- **Standalone Windows build** - a single `oscilloplot.exe` with no DLLs and no
+  VC++ Redistributable, running on any Windows 11 machine (SSE2 baseline,
+  OpenGL 3.3 → 3.2 → 3.0 fallback, and audio is optional)
 - **Cross-platform**: Windows, macOS, Linux
+
+📖 **[Full User Manual](docs/user_manual.html)** - complete reference for every
+panel, with setup instructions for connecting a real oscilloscope.
 
 ---
 
