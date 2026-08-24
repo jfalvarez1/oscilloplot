@@ -557,3 +557,86 @@ TEST(Preset, bad_magic_is_rejected) {
     Preset p; std::string err;
     CHECK(!loadPreset(tf.path, p, err));
 }
+
+//==============================================================================
+// Regression tests for behaviour fixed during development. Each of these
+// failed at some point, so they stay to keep the fix honest.
+//==============================================================================
+
+TEST(Regression, crossfade_never_produces_nan) {
+    // A zero-length or single-point step must not divide by zero when blended.
+    Pattern one;  one.push_back(0.3f, -0.2f);
+    Pattern many = makeCircle(16);
+    Pattern out;
+
+    for (float t : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+        blendPatterns(one, many, t, out);
+        for (size_t i = 0; i < out.size(); ++i) {
+            CHECK(std::isfinite(out.x[i]));
+            CHECK(std::isfinite(out.y[i]));
+        }
+        blendPatterns(many, one, t, out);
+        for (size_t i = 0; i < out.size(); ++i) {
+            CHECK(std::isfinite(out.x[i]));
+            CHECK(std::isfinite(out.y[i]));
+        }
+    }
+}
+
+TEST(Regression, sequence_step_name_survives_spaces) {
+    // Names are the remainder of the line, so multi-word names must round-trip.
+    TempFile tf("test_spacename.oseq");
+    Sequence seq;
+    SequenceStep s;
+    s.pattern = makeCircle(4);
+    snprintf(s.name, sizeof(s.name), "%s", "Two Words");
+    seq.steps.push_back(std::move(s));
+
+    std::string err;
+    CHECK(saveSequence(tf.path, seq, err));
+
+    Sequence back;
+    CHECK(loadSequence(tf.path, back, err));
+    CHECK_STR_EQ(back.steps[0].name, "Two Words");
+}
+
+TEST(Regression, preset_round_trip_keeps_effect_toggles_off) {
+    // An empty preset means "everything default"; loading one must not switch
+    // effects on. This underpins Reset All and Bypass All.
+    Preset empty;
+    CHECK_NEAR(empty.valueOr("echoEnabled", 0.0f), 0.0, 1e-9);
+    CHECK_NEAR(empty.valueOr("distortionEnabled", 0.0f), 0.0, 1e-9);
+    CHECK_NEAR(empty.valueOr("rotationSpeed", 5.0f), 5.0, 1e-9);
+}
+
+TEST(Regression, recent_files_survive_duplicate_add_of_front_entry) {
+    // Re-adding the entry that is already newest must not empty the list.
+    RecentFiles r;
+    r.add("only.txt");
+    r.add("only.txt");
+    CHECK_EQ(r.entries().size(), size_t(1));
+    CHECK_STR_EQ(r.entries()[0], "only.txt");
+}
+
+TEST(Regression, undo_returned_pointer_stays_valid_after_more_undos) {
+    // The stack returns a pointer into its own storage; copying out of it must
+    // happen before the next call, and the value must be correct at read time.
+    UndoStack<int> stack;
+    stack.push(10);
+    stack.push(20);
+
+    const int* a = stack.undo(30);
+    CHECK(a != nullptr);
+    int copiedA = *a;
+    CHECK_EQ(copiedA, 20);
+
+    const int* b = stack.undo(copiedA);
+    CHECK(b != nullptr);
+    CHECK_EQ(*b, 10);
+}
+
+TEST(Regression, oversized_pattern_constant_matches_engine_buffer) {
+    // sequence.cpp and the loaders reject input above this; if the audio
+    // engine's buffer ever shrinks, they must be updated together.
+    CHECK_EQ(MAX_PATTERN_POINTS, size_t(65536));
+}

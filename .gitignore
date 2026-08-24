@@ -52,10 +52,14 @@ desktop.ini
 # Claude Code
 .claude/
 
-# Release artifacts
+# Release artifacts - published to GitHub Releases, not tracked here
 *.zip
 release/
 dist/
+ci-artifacts/
+
+# Runtime state written next to the executable
+oscilloplot_recent.txt
 nul
 
 # Debug logs

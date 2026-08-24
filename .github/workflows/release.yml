@@ -31,7 +31,10 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
-        run: cmake --build build --config Release --target oscilloplot
+        run: cmake --build build --config Release
+
+      - name: Run unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Verify the exe is self-contained
         shell: pwsh
@@ -79,7 +82,10 @@ jobs:
             -DOSCILLOPLOT_STANDALONE=OFF
 
       - name: Build
-        run: cmake --build build --config Release --target oscilloplot -j3
+        run: cmake --build build --config Release -j3
+
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
 
       - name: Bundle dependent dylibs into the .app
         run: |

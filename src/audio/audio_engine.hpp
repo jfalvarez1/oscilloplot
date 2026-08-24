@@ -143,6 +143,17 @@ public:
     // `% patternSize`, so a position beyond the new length wraps safely.
     void setPatternContinuous(const Pattern& pattern);
 
+    // Run the current effect chain over `in` and write the result to out[XY],
+    // for previewing effects on screen while playback is stopped.
+    //
+    // Effects evolve over time (rotation angle, fade step, echo history), so
+    // this snapshots that state, advances it to `timeSeconds`, and restores it
+    // afterwards - starting playback later behaves as if this never ran. Only
+    // safe to call while stopped, since the audio thread owns the same state.
+    // Returns the number of samples written (capped at MAX_PATTERN_SIZE).
+    size_t renderPreview(const Pattern& in, float* outX, float* outY,
+                         size_t maxCount, float timeSeconds);
+
     void setSampleRate(int baseRate, int multiplier);
     int getActualSampleRate() const { return m_actualSampleRate; }
 

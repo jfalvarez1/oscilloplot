@@ -141,6 +141,48 @@ void AudioEngine::setPatternContinuous(const Pattern& pattern) {
     // Deliberately no m_playbackPosition reset - see the header.
 }
 
+size_t AudioEngine::renderPreview(const Pattern& in, float* outX, float* outY,
+                                  size_t maxCount, float timeSeconds) {
+    const size_t count = std::min({in.size(), maxCount, MAX_PATTERN_SIZE});
+    if (count == 0) return 0;
+
+    // Snapshot the evolving effect state so playback is unaffected.
+    const float savedTime     = m_effectTime;
+    const float savedRotation = m_currentRotationAngle;
+    const float savedKaleido  = m_kaleidoscopeAngle;
+    const uint32_t savedFade  = m_fadeStep;
+    const uint32_t savedNoise = m_noiseState;
+    const size_t savedEchoPos = m_echoWritePos;
+
+    // Drive the time-based effects from wall-clock so the preview animates at
+    // the same rate the ear would hear.
+    m_effectTime = timeSeconds;
+    const int rate = (m_actualSampleRate > 0) ? m_actualSampleRate : 48000;
+    const float cyclesPerSecond =
+        static_cast<float>(rate) / static_cast<float>(std::max<size_t>(1, count));
+    m_fadeStep = static_cast<uint32_t>(timeSeconds * cyclesPerSecond);
+    m_currentRotationAngle =
+        m_effects.rotationSpeed.load(std::memory_order_relaxed) *
+        static_cast<float>(m_fadeStep);
+    m_kaleidoscopeAngle =
+        m_effects.kaleidoscopeRotation.load(std::memory_order_relaxed) *
+        static_cast<float>(m_fadeStep);
+
+    std::memcpy(outX, in.x.data(), count * sizeof(float));
+    std::memcpy(outY, in.y.data(), count * sizeof(float));
+
+    applyEffects(outX, outY, count);
+
+    m_effectTime           = savedTime;
+    m_currentRotationAngle = savedRotation;
+    m_kaleidoscopeAngle    = savedKaleido;
+    m_fadeStep             = savedFade;
+    m_noiseState           = savedNoise;
+    m_echoWritePos         = savedEchoPos;
+
+    return count;
+}
+
 void AudioEngine::setSampleRate(int baseRate, int multiplier) {
     m_baseSampleRate = baseRate;
     m_multiplier = multiplier;

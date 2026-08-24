@@ -1308,6 +1308,11 @@ void UIManager::renderOscilloscopeDisplay(App& app) {
     ImGui::SameLine();
     ImGui::SetNextItemWidth(70);
     ImGui::SliderFloat("##Decay", &m_phosphor.decayTime, 20.0f, 150.0f, "%.0f");
+    ImGui::SameLine();
+    ImGui::Checkbox("FX Preview", &m_previewEffects);
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Show effects on the scope while stopped");
+    }
 
     renderPhosphorScope(app);
 
@@ -1529,19 +1534,40 @@ void UIManager::renderPhosphorScope(App& app) {
         } else {
             //==================================================================
             // STATIC PREVIEW (when not playing)
+            //
+            // Effects used to be invisible until playback started, so every
+            // effect had to be tuned blind. The chain is run here on the UI
+            // thread - safe because the audio callback is not running - and the
+            // result is what gets drawn.
             //==================================================================
-            const auto& pattern = app.getPattern();
-            if (!pattern.empty()) {
-                // Calculate velocity-based intensity for preview
-                size_t pCount = pattern.size();
+            const Pattern& source = app.getPattern();
+            size_t pCount = 0;
+            const float* px = nullptr;
+            const float* py = nullptr;
+
+            if (!source.empty()) {
+                if (m_previewEffects && !m_effectsBypassed) {
+                    pCount = app.getAudioEngine().renderPreview(
+                        source, m_vizX, m_vizY, VIZ_SAMPLES,
+                        static_cast<float>(ImGui::GetTime()));
+                    px = m_vizX;
+                    py = m_vizY;
+                }
+                if (pCount == 0) {          // preview off, or nothing rendered
+                    pCount = source.size();
+                    px = source.xData();
+                    py = source.yData();
+                }
+            }
+
+            if (pCount > 0) {
 
                 // Dim glow layer
                 ImPlot::PushStyleColor(ImPlotCol_Line,
                     ImVec4(m_phosphor.colorR * 0.25f, m_phosphor.colorG * 0.35f,
                            m_phosphor.colorB * 0.2f, 0.35f));
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, m_phosphor.beamWidth * 3.0f);
-                ImPlot::PlotLine("##PrevGlow", pattern.xData(), pattern.yData(),
-                                static_cast<int>(pCount));
+                ImPlot::PlotLine("##PrevGlow", px, py, static_cast<int>(pCount));
                 ImPlot::PopStyleVar();
                 ImPlot::PopStyleColor();
 
@@ -1550,17 +1576,101 @@ void UIManager::renderPhosphorScope(App& app) {
                     ImVec4(m_phosphor.colorR * 0.5f, m_phosphor.colorG * 0.65f,
                            m_phosphor.colorB * 0.45f, 0.7f));
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, m_phosphor.beamWidth);
-                ImPlot::PlotLine("##Preview", pattern.xData(), pattern.yData(),
-                                static_cast<int>(pCount));
+                ImPlot::PlotLine("##Preview", px, py, static_cast<int>(pCount));
                 ImPlot::PopStyleVar();
                 ImPlot::PopStyleColor();
             }
         }
 
+        //======================================================================
+        // CRT post-effects, drawn over the trace inside the plot rect.
+        //
+        // These were previously exposed as sliders that did nothing. They are
+        // draw-list overlays rather than a shader: the scope is rendered with
+        // ImGui/ImPlot primitives, so there is no offscreen texture to sample,
+        // and overlays cost nothing when their strength is zero.
+        //======================================================================
+        // Drawn inside the plot, so GetWindowDrawList() is the plot's own child
+        // draw list and the overlays land on top of the trace. Drawing them
+        // after EndPlot puts them on the parent list, which renders first and
+        // leaves them hidden underneath.
+        renderCrtOverlays(ImPlot::GetPlotPos(), ImPlot::GetPlotSize());
+
         ImPlot::EndPlot();
     }
 
     ImPlot::PopStyleColor(3);
+}
+
+void UIManager::renderCrtOverlays(const ImVec2& pos, const ImVec2& size) {
+    const bool anyEnabled = m_phosphor.vignetteStrength > 0.001f ||
+                            m_phosphor.scanlineEffect  > 0.001f ||
+                            m_phosphor.noiseAmount     > 0.001f;
+    if (!anyEnabled) return;
+
+    if (size.x < 1.0f || size.y < 1.0f) return;
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), true);
+
+    //--------------------------------------------------------------------------
+    // Scanlines: horizontal dark bands, as on a raster CRT.
+    //--------------------------------------------------------------------------
+    if (m_phosphor.scanlineEffect > 0.001f) {
+        const float spacing = 3.0f;
+        const int alpha = static_cast<int>(m_phosphor.scanlineEffect * 110.0f);
+        const ImU32 col = IM_COL32(0, 0, 0, alpha);
+        for (float y = pos.y; y < pos.y + size.y; y += spacing) {
+            dl->AddLine(ImVec2(pos.x, y), ImVec2(pos.x + size.x, y), col, 1.0f);
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // Vignette: darkening towards the edges, built from nested rectangle
+    // outlines so it stays cheap and needs no gradient texture.
+    //--------------------------------------------------------------------------
+    if (m_phosphor.vignetteStrength > 0.001f) {
+        const int steps = 24;
+        const float maxInset = std::min(size.x, size.y) * 0.45f;
+        for (int i = 0; i < steps; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(steps);
+            const float inset = maxInset * t;
+            // Strongest at the very edge, fading inwards.
+            const float strength = (1.0f - t) * (1.0f - t) *
+                                   m_phosphor.vignetteStrength;
+            const int alpha = static_cast<int>(strength * 90.0f);
+            if (alpha <= 0) continue;
+            dl->AddRect(ImVec2(pos.x + inset, pos.y + inset),
+                        ImVec2(pos.x + size.x - inset, pos.y + size.y - inset),
+                        IM_COL32(0, 0, 0, alpha),
+                        0.0f, 0, maxInset / steps + 1.0f);
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // Analog noise: sparse bright speckle. Deterministic per frame via a small
+    // xorshift so it shimmers without needing a RNG object.
+    //--------------------------------------------------------------------------
+    if (m_phosphor.noiseAmount > 0.001f) {
+        uint32_t rng = 0x9E3779B9u ^ (m_frameCount * 2654435761u);
+        auto next = [&rng]() {
+            rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+            return rng;
+        };
+
+        const int count = static_cast<int>(m_phosphor.noiseAmount * 4000.0f);
+        for (int i = 0; i < count; ++i) {
+            const float fx = pos.x + (next() % 10000) / 10000.0f * size.x;
+            const float fy = pos.y + (next() % 10000) / 10000.0f * size.y;
+            const int a = 20 + static_cast<int>((next() % 60));
+            dl->AddRectFilled(ImVec2(fx, fy), ImVec2(fx + 1.0f, fy + 1.0f),
+                              IM_COL32(static_cast<int>(m_phosphor.colorR * 255),
+                                       static_cast<int>(m_phosphor.colorG * 255),
+                                       static_cast<int>(m_phosphor.colorB * 255), a));
+        }
+    }
+
+    dl->PopClipRect();
 }
 
 //==============================================================================
@@ -3123,10 +3233,66 @@ void UIManager::render3DShapeGenerator(App& app) {
     // only ever captures one orientation. Baking freezes N rotation steps into
     // a single long pattern that plays (and exports) as a rotating shape.
     if (ImGui::TreeNode("Bake Rotation")) {
-        ImGui::SliderInt("Frames", &m_shape3D.bakeFrames, 2, 200);
+        ImGui::SliderInt("Frames", &m_shape3D.bakeFrames, 2, 400);
         ImGui::TextDisabled("Each frame advances by the animation speeds");
 
-        if (ImGui::Button("Bake to Pattern", ImVec2(-1, 30))) {
+        // Two destinations: one long pattern (simple, but bounded by the
+        // engine's buffer) or one sequencer step per frame (no frame limit,
+        // and the result stays editable afterwards).
+        ImGui::RadioButton("To Pattern", &m_bakeToSequencer, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("To Sequencer", &m_bakeToSequencer, 1);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("One step per frame - no frame cap, and you can edit or crossfade the result");
+        }
+
+        if (m_bakeToSequencer) {
+            ImGui::SliderInt("Cycles/frame", &m_bakeCyclesPerFrame, 1, 50);
+        }
+
+        if (m_bakeToSequencer && ImGui::Button("Bake to Sequencer", ImVec2(-1, 30))) {
+            float rx0 = m_shape3D.rotationX;
+            float ry0 = m_shape3D.rotationY;
+            float rz0 = m_shape3D.rotationZ;
+
+            m_sequencerUndo.push(m_sequencer.seq);
+            Sequence built;
+            built.loop = true;
+            built.crossfade = 0.0f;   // frames already form a continuous motion
+
+            Pattern frame;
+            for (int f = 0; f < m_shape3D.bakeFrames; ++f) {
+                buildShapeFrame(frame);
+                if (!frame.empty()) {
+                    SequenceStep step;
+                    step.pattern = frame;
+                    step.cycles = m_bakeCyclesPerFrame;
+                    snprintf(step.name, sizeof(step.name), "Frame %d", f + 1);
+                    built.steps.push_back(std::move(step));
+                }
+                m_shape3D.rotationX += m_shape3D.rotationSpeedX;
+                m_shape3D.rotationY += m_shape3D.rotationSpeedY;
+                m_shape3D.rotationZ += m_shape3D.rotationSpeedZ;
+            }
+
+            m_shape3D.rotationX = rx0;
+            m_shape3D.rotationY = ry0;
+            m_shape3D.rotationZ = rz0;
+
+            if (built.steps.empty()) {
+                setStatus("Nothing to bake - shape produced no points", true);
+            } else {
+                m_sequencer.seq = std::move(built);
+                m_sequencer.playing = false;
+                m_sequencer.currentStep = -1;
+                m_showSequencer = true;
+                claimPatternSource();
+                setStatus("Baked " + std::to_string(m_sequencer.seq.size()) +
+                          " frames into the sequencer");
+            }
+        }
+
+        if (!m_bakeToSequencer && ImGui::Button("Bake to Pattern", ImVec2(-1, 30))) {
             float rx0 = m_shape3D.rotationX;
             float ry0 = m_shape3D.rotationY;
             float rz0 = m_shape3D.rotationZ;
@@ -3566,9 +3732,16 @@ void UIManager::renderDisplaySettings(App& app) {
     // CRT EFFECTS (ADVANCED)
     //==========================================================================
     if (ImGui::CollapsingHeader("CRT Effects (Advanced)")) {
-        // None of the CRT post-effects are implemented in the renderer yet;
-        // showing live-looking sliders for them would be dishonest UI.
-        ImGui::TextDisabled("Curvature, vignette, noise, scanlines: coming soon");
+        ImGui::SliderFloat("Vignette", &m_phosphor.vignetteStrength, 0.0f, 1.0f);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Darken the edges of the tube");
+
+        ImGui::SliderFloat("Scanlines", &m_phosphor.scanlineEffect, 0.0f, 1.0f);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Horizontal raster banding");
+
+        ImGui::SliderFloat("Analog Noise", &m_phosphor.noiseAmount, 0.0f, 0.1f);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Sparse phosphor speckle");
+
+        ImGui::TextDisabled("Screen curvature needs a shader pass - not implemented");
     }
 
     //==========================================================================
@@ -3905,19 +4078,50 @@ void UIManager::renderImageVectorizer(App& app) {
     //==========================================================================
     bool canProcess = m_vectorizerImageLoaded;
 
-    if (!canProcess) ImGui::BeginDisabled();
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.9f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
-    if (ImGui::Button("Process Image", ImVec2(-1, 40))) {
-        statusMessage = "Processing...";
+    // Re-runs detection and refreshes the preview. Shared by the button and
+    // the live path below.
+    auto runVectorizer = [&]() {
         m_vectorizer.process(m_vectorizerParams);
         previewX.clear();
         previewY.clear();
         m_vectorizer.generatePattern(previewX, previewY, m_vectorizerParams);
         statusMessage = "Done! " + std::to_string(previewX.size()) + " points generated";
+    };
+
+    ImGui::Checkbox("Live preview", &m_vectorizerLive);
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Re-process automatically when a setting changes.\nRuns on release, not while dragging - detection is expensive.");
+    }
+
+    if (!canProcess) ImGui::BeginDisabled();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.9f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+    if (ImGui::Button("Process Image", ImVec2(-1, 40))) {
+        statusMessage = "Processing...";
+        runVectorizer();
+        // Keep the live watcher in step so it does not immediately re-run.
+        std::memcpy(&m_vectorizerLastParams, &m_vectorizerParams,
+                    sizeof(VectorizerParams));
+        m_vectorizerHasLast = true;
     }
     ImGui::PopStyleColor(2);
     if (!canProcess) ImGui::EndDisabled();
+
+    // Live path: compare the whole parameter block byte-for-byte rather than
+    // instrumenting several dozen individual widgets. The snapshot is taken
+    // with memcpy so padding matches and the comparison stays reliable.
+    // Deferred until no widget is active, so a slider drag processes once on
+    // release instead of on every frame.
+    if (m_vectorizerLive && m_vectorizerImageLoaded && !ImGui::IsAnyItemActive()) {
+        if (!m_vectorizerHasLast ||
+            std::memcmp(&m_vectorizerLastParams, &m_vectorizerParams,
+                        sizeof(VectorizerParams)) != 0) {
+            runVectorizer();
+            std::memcpy(&m_vectorizerLastParams, &m_vectorizerParams,
+                        sizeof(VectorizerParams));
+            m_vectorizerHasLast = true;
+        }
+    }
 
     ImGui::Spacing();
 

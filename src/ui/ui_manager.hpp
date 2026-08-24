@@ -12,6 +12,10 @@
 #include "data/sequence.hpp"
 #include "utils/undo_stack.hpp"
 
+// ImGui's vector type, forward-declared so this header does not have to pull
+// in all of imgui.h for one function signature.
+struct ImVec2;
+
 namespace oscilloplot {
 
 class App;
@@ -73,9 +77,9 @@ struct PhosphorSettings {
     // CRT Simulation
     //--------------------------------------------------------------------------
     float screenCurvature = 0.0f;       // CRT screen curvature simulation (0-0.1)
-    float vignetteStrength = 0.1f;      // Edge darkening (0-0.3)
-    float noiseAmount = 0.02f;          // Analog noise simulation (0-0.1)
-    float scanlineEffect = 0.0f;        // Raster scanline simulation (0-0.5)
+    float vignetteStrength = 0.15f;     // Edge darkening (0-1)
+    float noiseAmount = 0.0f;           // Analog noise speckle (0-0.1)
+    float scanlineEffect = 0.0f;        // Raster scanline banding (0-1)
 };
 
 //==============================================================================
@@ -284,6 +288,9 @@ private:
     // Phosphor display rendering
     void renderPhosphorScope(App& app);
 
+    // CRT post-effects drawn over the trace (vignette, scanlines, noise)
+    void renderCrtOverlays(const ImVec2& plotPos, const ImVec2& plotSize);
+
     // Helper: Generate pattern from harmonics
     void generateHarmonicsPattern(App& app);
 
@@ -389,6 +396,15 @@ private:
     // a single undo entry instead of one per frame.
     bool m_padDragging = false;
 
+    // Run the effect chain on the preview shown while playback is stopped,
+    // so effects can be tuned without pressing Play.
+    bool m_previewEffects = true;
+
+    // Bake destination: 0 = single long pattern, 1 = one sequencer step per
+    // frame (no frame cap, and the result stays editable).
+    int m_bakeToSequencer = 0;
+    int m_bakeCyclesPerFrame = 4;
+
     // Visualization buffers
     static constexpr size_t VIZ_SAMPLES = 16384;
     float m_vizX[VIZ_SAMPLES];
@@ -425,6 +441,12 @@ private:
     VectorizerParams m_vectorizerParams;
     bool m_vectorizerImageLoaded = false;
     std::string m_vectorizerImagePath;
+
+    // Live preview: re-process when a setting changes and no widget is being
+    // dragged. The byte snapshot avoids instrumenting every control.
+    bool m_vectorizerLive = false;
+    bool m_vectorizerHasLast = false;
+    VectorizerParams m_vectorizerLastParams;
 };
 
 } // namespace oscilloplot
