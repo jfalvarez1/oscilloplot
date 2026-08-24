@@ -88,13 +88,7 @@ UIManager::UIManager() {
     m_harmonics.xTerms[0] = {1.0f, 3.0f, 0.0f, true};
     m_harmonics.yTerms[0] = {1.0f, 2.0f, PI / 2.0f, true};
 
-    // Initialize sound pad with a default pattern
-    for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) {
-        float angle = TWO_PI * static_cast<float>(i) / SoundPadState::NUM_STEPS;
-        m_soundPad.x[i] = std::cos(angle) * 0.8f;
-        m_soundPad.y[i] = std::sin(angle) * 0.8f;
-        m_soundPad.active[i] = true;
-    }
+    // Sound pad seeds itself with a ready-to-play circle (SoundPadState ctor)
 }
 
 UIManager::~UIManager() = default;
@@ -2974,13 +2968,54 @@ void UIManager::render3DShapeGenerator(App& app) {
 // Sound Pad and Display Settings (unchanged)
 //==============================================================================
 
+// Build the traced path from the active pad steps: the beam walks from each
+// active step to the next and wraps back to the first.
+void UIManager::generateSoundPadPattern(App& app) {
+    std::vector<int> activeIndices;
+    for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) {
+        if (m_soundPad.active[i]) activeIndices.push_back(i);
+    }
+    if (activeIndices.empty()) return;
+
+    // Claim the pattern before writing it, or the rotating 3D shape (on by
+    // default) overwrites it on the very next frame and the pad looks dead.
+    claimPatternSource();
+
+    Pattern& pattern = app.getPattern();
+    pattern.clear();
+
+    constexpr int pointsPerStep = 100;
+    if (activeIndices.size() == 1) {
+        // A single step is a point; hold it so there is something to see.
+        int only = activeIndices[0];
+        for (int p = 0; p < pointsPerStep; ++p) {
+            pattern.push_back(m_soundPad.x[only], m_soundPad.y[only]);
+        }
+    } else {
+        for (size_t s = 0; s < activeIndices.size(); ++s) {
+            int curr = activeIndices[s];
+            int next = activeIndices[(s + 1) % activeIndices.size()];
+            for (int p = 0; p < pointsPerStep; ++p) {
+                float t = static_cast<float>(p) / pointsPerStep;
+                pattern.x.push_back(m_soundPad.x[curr] * (1 - t) + m_soundPad.x[next] * t);
+                pattern.y.push_back(m_soundPad.y[curr] * (1 - t) + m_soundPad.y[next] * t);
+            }
+        }
+    }
+
+    app.getAudioEngine().setPattern(pattern);
+}
+
 void UIManager::renderSoundPad(App& app) {
     // Position: Floating, left side below Controls
     placeWindow(0.006f, 0.62f, 0.20f, 0.36f);
     ImGui::Begin("Sound Pad", &m_showSoundPad);
     ImGui::Text("16-Step XY Sequencer");
+    ImGui::TextDisabled("Click a cell to switch its step on/off.");
+    ImGui::TextDisabled("Drag a cell to move its point.");
     ImGui::Separator();
 
+    bool padChanged = false;
     float buttonSize = 60.0f;
     for (int row = 0; row < SoundPadState::GRID_SIZE; ++row) {
         for (int col = 0; col < SoundPadState::GRID_SIZE; ++col) {
@@ -2992,7 +3027,10 @@ void UIManager::renderSoundPad(App& app) {
 
             char label[32];
             snprintf(label, sizeof(label), "%d\n%.1f,%.1f", idx + 1, m_soundPad.x[idx], m_soundPad.y[idx]);
-            if (ImGui::Button(label, ImVec2(buttonSize, buttonSize))) m_soundPad.active[idx] = !m_soundPad.active[idx];
+            if (ImGui::Button(label, ImVec2(buttonSize, buttonSize))) {
+                m_soundPad.active[idx] = !m_soundPad.active[idx];
+                padChanged = true;
+            }
             ImGui::PopStyleColor();
 
             if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
@@ -3000,39 +3038,45 @@ void UIManager::renderSoundPad(App& app) {
                 m_soundPad.x[idx] = std::clamp(m_soundPad.x[idx] + delta.x * 0.01f, -1.0f, 1.0f);
                 m_soundPad.y[idx] = std::clamp(m_soundPad.y[idx] - delta.y * 0.01f, -1.0f, 1.0f);
                 ImGui::ResetMouseDragDelta(0);
+                padChanged = true;
             }
         }
     }
 
     ImGui::Separator();
     if (ImGui::Button("Circle Preset", ImVec2(-1, 0))) {
-        for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) {
-            float angle = TWO_PI * static_cast<float>(i) / SoundPadState::NUM_STEPS;
-            m_soundPad.x[i] = std::cos(angle) * 0.8f; m_soundPad.y[i] = std::sin(angle) * 0.8f; m_soundPad.active[i] = true;
-        }
+        m_soundPad.resetToCircle();
+        padChanged = true;
+    }
+    if (ImGui::Button("Activate All", ImVec2(-1, 0))) {
+        for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) m_soundPad.active[i] = true;
+        padChanged = true;
+    }
+    if (ImGui::Button("Grid Layout", ImVec2(-1, 0))) {
+        m_soundPad.gridLayout();
+        padChanged = true;
     }
     if (ImGui::Button("Clear All", ImVec2(-1, 0))) {
-        for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) { m_soundPad.x[i] = 0; m_soundPad.y[i] = 0; m_soundPad.active[i] = false; }
+        // Deactivate only - the point positions stay put, so switching cells
+        // back on still draws something.
+        for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) m_soundPad.active[i] = false;
+        padChanged = true;
     }
+
+    int activeCount = 0;
+    for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) if (m_soundPad.active[i]) activeCount++;
+    if (activeCount == 0) {
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "No steps active");
+    } else {
+        ImGui::TextDisabled("%d step%s active", activeCount, activeCount == 1 ? "" : "s");
+    }
+
+    // Live feedback: edits apply straight to the scope, no button press needed.
+    if (padChanged) generateSoundPadPattern(app);
 
     ImGui::Separator();
     if (ImGui::Button("Generate Pattern", ImVec2(-1, 30))) {
-        Pattern& pattern = app.getPattern();
-        pattern.clear();
-        std::vector<int> activeIndices;
-        for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) if (m_soundPad.active[i]) activeIndices.push_back(i);
-        if (!activeIndices.empty()) {
-            int pointsPerStep = 100;
-            for (size_t s = 0; s < activeIndices.size(); ++s) {
-                int curr = activeIndices[s], next = activeIndices[(s + 1) % activeIndices.size()];
-                for (int p = 0; p < pointsPerStep; ++p) {
-                    float t = static_cast<float>(p) / pointsPerStep;
-                    pattern.x.push_back(m_soundPad.x[curr] * (1 - t) + m_soundPad.x[next] * t);
-                    pattern.y.push_back(m_soundPad.y[curr] * (1 - t) + m_soundPad.y[next] * t);
-                }
-            }
-            app.getAudioEngine().setPattern(pattern);
-        }
+        generateSoundPadPattern(app);
     }
     ImGui::End();
 }

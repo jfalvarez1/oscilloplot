@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <array>
+#include <cmath>
 #include <string>
 #include "vectorizer/image_vectorizer.hpp"
 #include "data/obj_loader.hpp"
@@ -80,10 +81,39 @@ struct SoundPadState {
     static constexpr int GRID_SIZE = 4;
     static constexpr int NUM_STEPS = GRID_SIZE * GRID_SIZE;
 
+    // Grid layout: each cell's point sits at the cell's own place in the
+    // grid, so the pad reads as a spatial XY surface. (The startup default is
+    // the circle below; an all-zero layout would collapse every step onto the
+    // origin and draw an invisible single dot.)
+    static constexpr float cellX(int idx) {
+        return -0.8f + 1.6f * static_cast<float>(idx % GRID_SIZE) / (GRID_SIZE - 1);
+    }
+    static constexpr float cellY(int idx) {
+        return 0.8f - 1.6f * static_cast<float>(idx / GRID_SIZE) / (GRID_SIZE - 1);
+    }
+
     std::array<float, NUM_STEPS> x{};   // X position for each step (-1 to 1)
     std::array<float, NUM_STEPS> y{};   // Y position for each step (-1 to 1)
     std::array<bool, NUM_STEPS> active{}; // Which steps are active
     int currentStep = 0;
+
+    SoundPadState() { resetToCircle(); }
+
+    // Points laid out on the grid, matching the button positions.
+    void gridLayout() {
+        for (int i = 0; i < NUM_STEPS; ++i) { x[i] = cellX(i); y[i] = cellY(i); }
+    }
+
+    // Startup default: a ready-to-play circle with every step enabled.
+    void resetToCircle() {
+        constexpr float kTwoPi = 6.28318530718f;
+        for (int i = 0; i < NUM_STEPS; ++i) {
+            float a = kTwoPi * static_cast<float>(i) / NUM_STEPS;
+            x[i] = std::cos(a) * 0.8f;
+            y[i] = std::sin(a) * 0.8f;
+            active[i] = true;
+        }
+    }
 };
 
 //==============================================================================
@@ -294,6 +324,9 @@ private:
         m_3dShapeActive = false;
         m_shape3D.animate = false;
     }
+
+    // Helper: build the pattern from the active sound pad steps
+    void generateSoundPadPattern(App& app);
 
     // Sequencer
     void renderSequencer(App& app);
