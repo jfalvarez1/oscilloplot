@@ -6,7 +6,26 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
 
 ## Download
 
-**[Download Latest Release (Windows x64)](https://github.com/jfalvarez1/oscilloplot/releases/latest)** - No installation required, just extract and run!
+**[Download Latest Release](https://github.com/jfalvarez1/oscilloplot/releases/latest)** - no installation required, just extract and run.
+
+| Platform | Download | Notes |
+|----------|----------|-------|
+| **Windows x64** | `oscilloplot-windows-x64.zip` | Single self-contained `.exe` - no DLLs, no VC++ Redistributable |
+| **macOS arm64** | `oscilloplot-macos-arm64.zip` | `.app` bundle with all libraries embedded - no Homebrew needed. Apple Silicon (M1 and newer), macOS 11+ |
+
+Both are built and verified by [CI](.github/workflows/release.yml) on every push.
+
+<details>
+<summary><strong>First launch on macOS</strong></summary>
+
+The app is ad-hoc signed rather than notarized, so Gatekeeper will block the
+first launch. Either right-click the app and choose **Open**, then confirm; or
+run once:
+
+```bash
+xattr -dr com.apple.quarantine oscilloplot.app
+```
+</details>
 
 ## Screenshots
 
@@ -93,7 +112,7 @@ step 2 with the phosphor beam tracing a circle:
 - **Standalone Windows build** - a single `oscilloplot.exe` with no DLLs and no
   VC++ Redistributable, running on any Windows 11 machine (SSE2 baseline,
   OpenGL 3.3 → 3.2 → 3.0 fallback, and audio is optional)
-- **Cross-platform**: Windows, macOS, Linux
+- **Cross-platform**: prebuilt for Windows x64 and macOS arm64; Linux builds from source
 
 📖 **[Full User Manual](docs/user_manual.html)** - complete reference for every
 panel, with setup instructions for connecting a real oscilloscope.

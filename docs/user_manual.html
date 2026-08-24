@@ -1210,9 +1210,28 @@
 
             <h3>Pre-Built Binaries (Recommended)</h3>
             <p>Download the latest release from the <a href="https://github.com/jfalvarez1/oscilloplot/releases">Releases page</a>.</p>
-            <div class="new-feature">
-                The Windows build is a <strong>single self-contained <code>oscilloplot.exe</code></strong>.
-                There are no DLLs to copy and no Visual C++ Redistributable to install - extract and run.
+            <table>
+                <thead>
+                    <tr><th>Platform</th><th>Download</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Windows x64</strong></td>
+                        <td><code>oscilloplot-windows-x64.zip</code></td>
+                        <td>A single self-contained <code>oscilloplot.exe</code> - no DLLs to copy and no Visual C++ Redistributable to install</td>
+                    </tr>
+                    <tr>
+                        <td><strong>macOS arm64</strong></td>
+                        <td><code>oscilloplot-macos-arm64.zip</code></td>
+                        <td>An <code>.app</code> bundle with every library embedded - Homebrew is not required. Apple Silicon (M1 and newer), macOS 11 or later</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="note">
+                <strong>First launch on macOS.</strong> The app is ad-hoc signed rather than
+                notarized, so Gatekeeper blocks it the first time. Right-click the app and choose
+                <strong>Open</strong>, then confirm - or run
+                <code>xattr -dr com.apple.quarantine oscilloplot.app</code> once.
             </div>
             <p>It targets a broad range of machines deliberately:</p>
             <ul>
