@@ -1639,6 +1639,39 @@ cmake --build build
                 status line says the export was truncated.
             </div>
 
+            <h3>Presets</h3>
+            <p>
+                A pattern on its own does not capture how it sounded - the effects are lost when
+                the app closes. <strong>File &gt; Save Preset</strong> stores the pattern
+                <em>and</em> every effect setting in one <code>.opreset</code> file;
+                <strong>Load Preset</strong> restores both.
+            </p>
+            <div class="note">
+                Presets are forward compatible. Settings written by a newer build that this one does
+                not recognise are carried through untouched rather than discarded, so a preset can
+                move between versions without losing anything.
+            </div>
+
+            <h3>Open Recent</h3>
+            <p>
+                <strong>File &gt; Open Recent</strong> lists the last five files you loaded or saved -
+                patterns, presets and sequences together - and opens each with the right loader based
+                on its extension. Files that have since been moved or deleted are dropped from the
+                list rather than offered and failing.
+            </p>
+
+            <h3>Export Image <kbd>Ctrl</kbd>+<kbd>I</kbd></h3>
+            <p>
+                Renders the scope to a 1024x1024 PNG. This is not a screenshot: the trace is drawn
+                again at that resolution using the same beam model as the live display, so slow
+                parts of the trace are brighter and the phosphor glow is preserved. The current
+                phosphor colour, beam width and glow settings are all honoured.
+            </p>
+            <div class="tip">
+                Turn the graticule off in Display Settings first if you want a clean image of just
+                the trace.
+            </div>
+
             <h3>Status Messages</h3>
             <p>
                 Results appear briefly at the right of the menu bar - green for success, red for a
@@ -1878,10 +1911,30 @@ cmake --build build
                 animation frames into one long pattern that plays - and exports - as a genuinely
                 rotating shape.
             </p>
+            <p>There are two destinations:</p>
+            <table>
+                <thead>
+                    <tr><th>Destination</th><th>Behaviour</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>To Pattern</strong></td>
+                        <td>All frames go into one long pattern. Simple, but bounded by the
+                            engine's 65,536-point buffer - roughly 130 frames at the default
+                            resolution.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>To Sequencer</strong></td>
+                        <td>One sequencer step per frame. No frame cap, and the result stays
+                            editable - you can reorder frames, change how long each is held, or
+                            crossfade between them afterwards.</td>
+                    </tr>
+                </tbody>
+            </table>
             <ol class="steps">
                 <li>Set the rotation speeds you want; each baked frame advances by them</li>
-                <li>Open <strong>Bake Rotation</strong> and choose a frame count</li>
-                <li>Press <strong>Bake to Pattern</strong></li>
+                <li>Open <strong>Bake Rotation</strong> and choose a frame count and destination</li>
+                <li>Press <strong>Bake</strong></li>
             </ol>
             <p>
                 Baking stops the live animation and hands the pattern over, so the result stays put.
@@ -1979,6 +2032,31 @@ cmake --build build
                 and says so.
             </p>
 
+            <h3>Crossfade</h3>
+            <p>
+                By default one step switches abruptly to the next. The <strong>Crossfade</strong>
+                slider sets what fraction of each step is spent blending into the following one -
+                0 for a hard switch, up to 0.5 to spend half of every step fading.
+            </p>
+            <p>
+                Steps rarely share a point count, so the blend samples both patterns by position
+                along the trace rather than by index, and the result takes the larger of the two
+                sizes. That means a 200-point circle can fade into a 2,000-point knot without
+                either being mangled.
+            </p>
+            <div class="tip">
+                Crossfading suits shapes that occupy similar areas of the screen. Fading between a
+                tiny shape and a huge one reads better as a hard cut.
+            </div>
+
+            <h3>Undo</h3>
+            <p>
+                <strong>Undo</strong> and <strong>Redo</strong> cover the structural edits -
+                capturing, reordering and deleting steps. If an undo removes the step that is
+                currently playing, the sequence stops rather than continuing on a step that no
+                longer exists.
+            </p>
+
             <h3>Saving and Exporting</h3>
             <ul>
                 <li><strong>Save... / Load...</strong> - store the whole sequence as an <code>.oseq</code> file (a plain-text format holding each step's name, cycle count and points)</li>
@@ -2013,6 +2091,14 @@ cmake --build build
                     <tr><td><strong>Drag</strong> on a cell</td><td>Move that step's point; the two numbers on the button are its X,Y</td></tr>
                 </tbody>
             </table>
+
+            <h3>Undo</h3>
+            <p>
+                <strong>Undo</strong> and <strong>Redo</strong> cover cell toggles, point drags and
+                the presets below. A drag records a single entry for the whole gesture rather than
+                one per frame, so undo steps back to before you picked the cell up.
+                <kbd>Ctrl</kbd>+<kbd>Z</kbd> works while the panel is focused.
+            </p>
 
             <h3>Presets</h3>
             <ul>
@@ -2086,6 +2172,14 @@ cmake --build build
                 </tbody>
             </table>
 
+            <h3>Live Preview</h3>
+            <p>
+                With <strong>Live preview</strong> enabled the image re-processes whenever a setting
+                changes, so you can work by sight instead of pressing Process Image after every
+                adjustment. Detection is expensive, so it runs when you release a control rather
+                than continuously while dragging.
+            </p>
+
             <h3>Tuning</h3>
             <ul>
                 <li><strong>Preprocessing</strong> - blur, contrast and brightness before detection</li>
@@ -2112,6 +2206,39 @@ cmake --build build
             <h2>// Effects Reference //</h2>
 
             <p>All effects from the Python version are available, applied in real-time:</p>
+
+            <h3>Master Controls</h3>
+            <table>
+                <thead>
+                    <tr><th>Control</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Bypass All</strong></td>
+                        <td>Silences the whole chain without losing anything - the settings are
+                            remembered and restored when you switch it back off. The individual
+                            controls grey out while it is on, so you cannot edit into a state that
+                            is not audible.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reset All</strong></td>
+                        <td>Returns every effect to its default, behind a confirmation. Unlike
+                            bypass this is destructive.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Seeing Effects Without Playing</h3>
+            <p>
+                Effects apply to the scope while playback is stopped, so they can be tuned by eye
+                rather than by ear. The <strong>FX Preview</strong> checkbox in the scope toolbar
+                turns this off if you would rather see the raw pattern.
+            </p>
+            <div class="note">
+                The preview runs the same effect chain the audio thread uses, so what you see while
+                stopped is what you will hear when you press Play. Time-based effects such as
+                rotation and tremolo animate from the wall clock during preview.
+            </div>
 
             <h3>Transform Effects</h3>
             <table>

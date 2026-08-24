@@ -300,6 +300,8 @@
     <nav>
         <ul>
             <li><a href="#quickstart">Quick Start</a></li>
+            <li><a href="#files">Files &amp; Presets</a></li>
+            <li><a href="#sequencer">Sequencer</a></li>
             <li><a href="#vectorizer">Image Vectorizer</a></li>
             <li><a href="#generators">Generators</a></li>
             <li><a href="#effects">Effects</a></li>
@@ -315,8 +317,25 @@
 
             <div class="card">
                 <h3>Installation</h3>
-                <p><strong>No installation required!</strong> Simply download the ZIP file, extract it, and run <code>oscilloplot.exe</code>.</p>
-                <p>All dependencies are included - no Visual C++ Redistributable or other software needed.</p>
+                <p><strong>No installation required.</strong> Download, extract, and run.</p>
+                <table>
+                    <tr><th>Platform</th><th>Download</th><th>Contents</th></tr>
+                    <tr>
+                        <td><strong>Windows x64</strong></td>
+                        <td><code>oscilloplot-windows-x64.zip</code></td>
+                        <td>A single <code>oscilloplot.exe</code> - no DLLs, no Visual C++ Redistributable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>macOS arm64</strong></td>
+                        <td><code>oscilloplot-macos-arm64.zip</code></td>
+                        <td><code>oscilloplot.app</code> with every library embedded - Homebrew not required. Apple Silicon, macOS 11+</td>
+                    </tr>
+                </table>
+                <p><strong>First launch.</strong> Neither build is code-signed, so each system warns
+                   once. On Windows, SmartScreen shows "Windows protected your PC" - click
+                   <em>More info</em> then <em>Run anyway</em>. On macOS, right-click the app and
+                   choose <em>Open</em>, or run
+                   <code>xattr -dr com.apple.quarantine oscilloplot.app</code> once.</p>
             </div>
 
             <h3>Basic Usage</h3>
@@ -342,9 +361,93 @@
             <h3>Keyboard Shortcuts</h3>
             <table>
                 <tr><th>Key</th><th>Action</th></tr>
-                <tr><td><kbd>Space</kbd></td><td>Play / Stop audio</td></tr>
-                <tr><td><kbd>Escape</kbd></td><td>Exit application</td></tr>
+                <tr><td><kbd>Space</kbd></td><td>Play / Stop audio (ignored while typing)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Load pattern</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save pattern</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Export WAV</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Export image (PNG)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo (Drawing Canvas / Sound Pad)</td></tr>
+                <tr><td><kbd>Alt</kbd>+<kbd>F4</kbd></td><td>Exit application</td></tr>
             </table>
+        </section>
+
+        <!-- Files & Presets -->
+        <section id="files">
+            <h2>Files &amp; Presets</h2>
+
+            <p>Everything below lives in the <strong>File</strong> menu.</p>
+
+            <table>
+                <tr><th>Action</th><th>Formats</th><th>Notes</th></tr>
+                <tr>
+                    <td><strong>Load Pattern</strong></td>
+                    <td><code>.txt</code> <code>.csv</code> <code>.dat</code> <code>.osc</code> <code>.m</code></td>
+                    <td>Text is <code>X, Y</code> per line; <code>.osc</code> is an exact binary round-trip; <code>.m</code> extracts MATLAB-style arrays</td>
+                </tr>
+                <tr>
+                    <td><strong>Save Pattern</strong></td>
+                    <td><code>.txt</code> <code>.osc</code></td>
+                    <td>Type the extension you want; no extension saves as text</td>
+                </tr>
+                <tr>
+                    <td><strong>Save / Load Preset</strong></td>
+                    <td><code>.opreset</code></td>
+                    <td>The pattern <em>and</em> every effect setting in one file, so a whole look can be recalled</td>
+                </tr>
+                <tr>
+                    <td><strong>Export WAV</strong></td>
+                    <td><code>.wav</code></td>
+                    <td>Stereo, left = X and right = Y, at the configured rate and length</td>
+                </tr>
+                <tr>
+                    <td><strong>Export Image</strong></td>
+                    <td><code>.png</code></td>
+                    <td>Renders the scope at 1024x1024 with the same beam model as the display - not a screenshot</td>
+                </tr>
+            </table>
+
+            <p><strong>Open Recent</strong> lists the last five files - patterns, presets and
+               sequences alike - and opens each with the right loader. Files that have been moved
+               or deleted drop off the list automatically.</p>
+        </section>
+
+        <!-- Sequencer -->
+        <section id="sequencer">
+            <h2>Sequencer</h2>
+
+            <p>The Sequencer (<strong>View &gt; Sequencer</strong>) chains patterns over time. Each
+               step holds a complete pattern plus a cycle count controlling how long it plays.</p>
+
+            <div class="steps">
+                <div class="step">
+                    <strong>Make a pattern</strong><br>
+                    Use any generator, the canvas, a 3D shape, or the vectorizer.
+                </div>
+                <div class="step">
+                    <strong>Capture it</strong><br>
+                    Press <em>+ Capture Current Pattern</em> to add it as a step.
+                </div>
+                <div class="step">
+                    <strong>Set the timing</strong><br>
+                    Drag each step's cycle field; hover to see the duration in seconds.
+                </div>
+                <div class="step">
+                    <strong>Play</strong><br>
+                    Press <em>Play Sequence</em>. A marker shows which step is running.
+                </div>
+            </div>
+
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><strong>Crossfade</strong></td><td>Blend each step into the next instead of switching abruptly. Patterns of different lengths blend cleanly.</td></tr>
+                <tr><td><strong>Undo / Redo</strong></td><td>Covers capture, reorder and delete.</td></tr>
+                <tr><td><strong>Loop</strong></td><td>Wrap back to the first step, or stop at the end.</td></tr>
+                <tr><td><strong>Save / Load</strong></td><td>Store the whole sequence as an <code>.oseq</code> file.</td></tr>
+                <tr><td><strong>Export WAV</strong></td><td>Render the entire sequence to one stereo WAV.</td></tr>
+            </table>
+
+            <p><em>The Sequencer's step timing is driven by the audio clock, so it needs a working
+               output device; it says so if one is missing.</em></p>
         </section>
 
         <!-- Image Vectorizer Section -->
