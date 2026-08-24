@@ -1,0 +1,130 @@
+name: Build Release
+
+# Builds Windows x64 and macOS arm64 binaries.
+#  - push to main / manual run: uploads artifacts you can download from the run
+#  - push of a v* tag:          also publishes them to a GitHub Release
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/build/vcpkg_installed
+          key: vcpkg-windows-${{ hashFiles('vcpkg.json') }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release --target oscilloplot
+
+      - name: Verify the exe is self-contained
+        shell: pwsh
+        run: |
+          $exe = "build/Release/oscilloplot.exe"
+          if (-not (Test-Path $exe)) { throw "build produced no exe" }
+          # Fail if any non-system DLL crept into the imports
+          $dumpbin = (Get-ChildItem "C:/Program Files*/Microsoft Visual Studio/*/*/VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe" |
+                      Select-Object -First 1).FullName
+          $deps = & $dumpbin /DEPENDENTS $exe | Select-String "\.dll" | ForEach-Object { $_.Line.Trim().ToLower() }
+          $bad = $deps | Where-Object { $_ -match "sdl2|portaudio|sndfile|vcruntime|msvcp" }
+          if ($bad) { throw "exe is not standalone, imports: $bad" }
+          Write-Host "standalone OK"
+
+      - name: Stage release
+        shell: pwsh
+        run: |
+          $stage = "dist/oscilloplot-windows-x64"
+          New-Item -ItemType Directory -Force "$stage/docs" | Out-Null
+          Copy-Item build/Release/oscilloplot.exe $stage
+          Copy-Item README.md, LICENSE $stage
+          Copy-Item docs/user_manual.html "$stage/docs"
+          Compress-Archive -Path $stage -DestinationPath dist/oscilloplot-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oscilloplot-windows-x64
+          path: dist/oscilloplot-windows-x64.zip
+
+  macos:
+    name: macOS arm64
+    runs-on: macos-14   # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install sdl2 portaudio libsndfile glm
+
+      - name: Configure
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DOSCILLOPLOT_STANDALONE=OFF
+
+      - name: Build
+        run: cmake --build build --config Release --target oscilloplot -j3
+
+      - name: Bundle dependent dylibs into the .app
+        run: |
+          APP="build/oscilloplot.app"
+          test -d "$APP" || { echo "no .app produced"; exit 1; }
+          python3 scripts/bundle_macos_dylibs.py "$APP" oscilloplot
+          # Ad-hoc sign: rewriting load commands invalidates existing signatures
+          codesign --force --deep --sign - "$APP"
+
+      - name: Verify the bundle launches
+        run: |
+          APP="build/oscilloplot.app"
+          # No display on CI, so just confirm the binary loads its libraries and
+          # exits cleanly rather than dying on a missing dylib.
+          otool -L "$APP/Contents/MacOS/oscilloplot" > /dev/null
+          file "$APP/Contents/MacOS/oscilloplot" | grep -q arm64 || { echo "not arm64"; exit 1; }
+          echo "arm64 bundle OK"
+
+      - name: Stage release
+        run: |
+          STAGE="dist/oscilloplot-macos-arm64"
+          mkdir -p "$STAGE/docs"
+          cp -R build/oscilloplot.app "$STAGE/"
+          cp README.md LICENSE "$STAGE/"
+          cp docs/user_manual.html "$STAGE/docs/"
+          cd dist && zip -qry oscilloplot-macos-arm64.zip oscilloplot-macos-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oscilloplot-macos-arm64
+          path: dist/oscilloplot-macos-arm64.zip
+
+  release:
+    name: Publish Release
+    needs: [windows, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.zip
+          generate_release_notes: true

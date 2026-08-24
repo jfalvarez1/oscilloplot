@@ -17,7 +17,7 @@
 #ifndef OSCILLOPLOT_VERSION
 #define OSCILLOPLOT_VERSION "dev"
 #endif
-#include <GL/gl.h>
+#include <SDL_opengl.h>
 #include <iostream>
 #include <cmath>
 
@@ -53,7 +53,13 @@ bool App::init() {
 }
 
 bool App::tryCreateContext(int major, int minor, int profile, const char* glslVersion) {
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    // macOS only grants 3.2+ core contexts when the forward-compatible flag is
+    // set, and offers no compatibility profile at all; the flag is harmless on
+    // other platforms since nothing here uses removed fixed-function GL.
+    int contextFlags = (profile == SDL_GL_CONTEXT_PROFILE_CORE)
+        ? SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG
+        : 0;
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, profile);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor);
@@ -132,10 +138,14 @@ bool App::initSDL() {
         const char* label;
     };
 
+    // macOS supports only core profiles (max 4.1), so the compatibility tier is
+    // skipped there - every Mac that runs this provides 3.3 Core anyway.
     const GLConfig configs[] = {
         {3, 3, SDL_GL_CONTEXT_PROFILE_CORE,          "#version 330", "OpenGL 3.3 Core"},
         {3, 2, SDL_GL_CONTEXT_PROFILE_CORE,          "#version 150", "OpenGL 3.2 Core"},
+#if !defined(__APPLE__)
         {3, 0, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY, "#version 130", "OpenGL 3.0"},
+#endif
     };
 
     for (const auto& cfg : configs) {

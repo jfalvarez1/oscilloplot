@@ -69,11 +69,58 @@ endif()
 # Find Dependencies
 #===============================================================================
 
-find_package(SDL2 CONFIG REQUIRED)
+# vcpkg ships CMake config packages for everything; Homebrew and most Linux
+# distros ship pkg-config for portaudio (and sometimes SDL2/sndfile) instead.
+# Try config mode first, then fall back to pkg-config, so one CMakeLists works
+# on Windows/vcpkg, macOS/Homebrew and Linux alike.
 find_package(OpenGL REQUIRED)
-find_package(portaudio CONFIG REQUIRED)
-find_package(SndFile CONFIG REQUIRED)
-find_package(glm CONFIG REQUIRED)
+find_package(PkgConfig QUIET)
+
+# --- SDL2 -------------------------------------------------------------------
+find_package(SDL2 CONFIG QUIET)
+if(TARGET SDL2::SDL2)
+    set(SDL2_LINK_TARGET SDL2::SDL2)
+elseif(TARGET SDL2::SDL2-static)
+    set(SDL2_LINK_TARGET SDL2::SDL2-static)
+else()
+    if(NOT PkgConfig_FOUND)
+        message(FATAL_ERROR "SDL2 not found and pkg-config unavailable")
+    endif()
+    pkg_check_modules(SDL2_PC REQUIRED IMPORTED_TARGET sdl2)
+    set(SDL2_LINK_TARGET PkgConfig::SDL2_PC)
+endif()
+message(STATUS "SDL2 target:      ${SDL2_LINK_TARGET}")
+
+# --- PortAudio --------------------------------------------------------------
+find_package(portaudio CONFIG QUIET)
+if(TARGET portaudio)
+    set(PORTAUDIO_LINK_TARGET portaudio)
+elseif(TARGET portaudio_static)
+    set(PORTAUDIO_LINK_TARGET portaudio_static)
+else()
+    if(NOT PkgConfig_FOUND)
+        message(FATAL_ERROR "PortAudio not found and pkg-config unavailable")
+    endif()
+    pkg_check_modules(PORTAUDIO_PC REQUIRED IMPORTED_TARGET portaudio-2.0)
+    set(PORTAUDIO_LINK_TARGET PkgConfig::PORTAUDIO_PC)
+endif()
+message(STATUS "PortAudio target: ${PORTAUDIO_LINK_TARGET}")
+
+# --- libsndfile -------------------------------------------------------------
+find_package(SndFile CONFIG QUIET)
+if(TARGET SndFile::sndfile)
+    set(SNDFILE_LINK_TARGET SndFile::sndfile)
+else()
+    if(NOT PkgConfig_FOUND)
+        message(FATAL_ERROR "libsndfile not found and pkg-config unavailable")
+    endif()
+    pkg_check_modules(SNDFILE_PC REQUIRED IMPORTED_TARGET sndfile)
+    set(SNDFILE_LINK_TARGET PkgConfig::SNDFILE_PC)
+endif()
+message(STATUS "libsndfile target: ${SNDFILE_LINK_TARGET}")
+
+# glm was a declared dependency but no source file includes it, so it is not
+# searched for here.
 
 #===============================================================================
 # ImGui and ImPlot (vendored)
@@ -182,19 +229,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # ones (portaudio_static, SDL2::SDL2-static), so resolve them here.
 #===============================================================================
 
-if(TARGET portaudio)
-    set(PORTAUDIO_TARGET portaudio)
-else()
-    set(PORTAUDIO_TARGET portaudio_static)
-endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
-    $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
+    ${SDL2_LINK_TARGET}
     OpenGL::GL
-    ${PORTAUDIO_TARGET}
-    SndFile::sndfile
-    glm::glm
+    ${PORTAUDIO_LINK_TARGET}
+    ${SNDFILE_LINK_TARGET}
 )
 
 #===============================================================================
@@ -235,18 +276,23 @@ if(MSVC)
 
 else()
     # GCC/Clang flags
+    # NOTE: -fno-exceptions was here but the code genuinely uses try/catch
+    # (main.cpp's top-level handler, file_loader's std::stof guard), so the
+    # GCC/Clang build could not compile at all. MSVC has always built with
+    # exceptions enabled; the flags now agree.
     target_compile_options(${PROJECT_NAME} PRIVATE
         -Wall -Wextra -Wpedantic
         -ffast-math             # Fast floating-point
-        -fno-exceptions         # Disable exceptions (embedded-style)
-        -fno-rtti               # Disable RTTI (embedded-style)
+        -fno-rtti               # Disable RTTI (nothing uses dynamic_cast/typeid)
         $<$<CONFIG:Release>:-O3>
         $<$<CONFIG:Release>:-flto>
     )
 
     # SIMD flags for GCC/Clang - capped at the requested baseline so the binary
     # stays runnable on the oldest CPU the level implies, not just the build host.
-    if(OSCILLOPLOT_ENABLE_SIMD)
+    # On ARM (Apple Silicon, aarch64) NEON is part of the baseline ABI and the
+    # x86 switches do not exist, so there is nothing to add.
+    if(OSCILLOPLOT_ENABLE_SIMD AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64|ARM64")
         include(CheckCXXCompilerFlag)
 
         if(OSCILLOPLOT_SIMD_LEVEL STREQUAL "AVX2")
@@ -319,6 +365,23 @@ if(APPLE)
         "-framework CoreFoundation"
         "-framework CoreAudio"
         "-framework AudioToolbox"
+        "-framework CoreServices"
+        "-framework AppKit"
+    )
+
+    # Build a real .app bundle so the icon, name and Retina flag are picked up
+    # by Finder and the Dock, and the app does not launch as a terminal tool.
+    set(MACOSX_ICON ${CMAKE_SOURCE_DIR}/assets/macos/oscilloplot.icns)
+    set_source_files_properties(${MACOSX_ICON} PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(${PROJECT_NAME} PRIVATE ${MACOSX_ICON})
+
+    configure_file(assets/macos/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist @ONLY)
+
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_BINARY_DIR}/Info.plist
+        OUTPUT_NAME "oscilloplot"
     )
 endif()
 
