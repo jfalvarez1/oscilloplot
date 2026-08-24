@@ -96,15 +96,17 @@ inline constexpr size_t SINE_TABLE_MASK = SINE_TABLE_SIZE - 1;
 //==============================================================================
 
 /**
- * @brief Compile-time generated sine lookup table
+ * @brief Sine lookup table with linear interpolation for sub-sample accuracy.
  *
- * Uses constexpr to generate table at compile time.
- * Linear interpolation for sub-sample accuracy.
+ * NOTE: this was written as a constexpr table, but std::sin is not constexpr in
+ * standard C++ - MSVC accepts it as an extension while Clang rejects it outright
+ * ("constexpr function never produces a constant expression"), so the GCC/Clang
+ * build could not compile. The table is now built once on first use instead,
+ * which costs one pass at startup and nothing thereafter.
  */
 class SineLUT {
 public:
-    // Generate table at compile time (C++17)
-    static constexpr std::array<float, SINE_TABLE_SIZE + 1> generateTable() {
+    static std::array<float, SINE_TABLE_SIZE + 1> generateTable() {
         std::array<float, SINE_TABLE_SIZE + 1> lut{};
         for (size_t i = 0; i <= SINE_TABLE_SIZE; ++i) {
             lut[i] = std::sin(TWO_PI * static_cast<float>(i) / SINE_TABLE_SIZE);
@@ -112,7 +114,12 @@ public:
         return lut;
     }
 
-    static inline const std::array<float, SINE_TABLE_SIZE + 1> table = generateTable();
+    // Function-local static: thread-safe, and immune to static initialization
+    // order issues if another translation unit uses this during its own init.
+    OSCILLOPLOT_FORCE_INLINE static const std::array<float, SINE_TABLE_SIZE + 1>& table() {
+        static const std::array<float, SINE_TABLE_SIZE + 1> t = generateTable();
+        return t;
+    }
 
     /**
      * @brief Fast sine using lookup table with linear interpolation
@@ -130,7 +137,8 @@ public:
         const float frac = indexF - static_cast<float>(index0);
 
         // Linear interpolation
-        return table[index0] + frac * (table[index1] - table[index0]);
+        const auto& t = table();
+        return t[index0] + frac * (t[index1] - t[index0]);
     }
 
     /**
