@@ -194,3 +194,52 @@ TEST(Generators, tiny_point_counts_do_not_crash) {
         }
     }
 }
+
+//==============================================================================
+// Screen curvature
+//
+// The transform lives on UIManager, but the maths is a plain barrel
+// distortion; this reproduces it so the shape of the curve stays pinned.
+//==============================================================================
+
+namespace {
+void barrel(float k, float x, float y, float& ox, float& oy) {
+    const float r2 = x * x + y * y;
+    const float f = 1.0f + k * r2;
+    ox = x * f;
+    oy = y * f;
+}
+}
+
+TEST(Curvature, centre_point_does_not_move) {
+    float ox, oy;
+    barrel(0.35f, 0.0f, 0.0f, ox, oy);
+    CHECK_NEAR(ox, 0.0, 1e-6);
+    CHECK_NEAR(oy, 0.0, 1e-6);
+}
+
+TEST(Curvature, edges_move_outward_more_than_the_middle) {
+    float nearX, nearY, farX, farY;
+    barrel(0.35f, 0.25f, 0.0f, nearX, nearY);
+    barrel(0.35f, 1.00f, 0.0f, farX,  farY);
+
+    const double nearShift = nearX - 0.25;
+    const double farShift  = farX  - 1.00;
+    CHECK(nearShift > 0.0);
+    CHECK(farShift > nearShift * 4.0);   // grows with r^2, not linearly
+}
+
+TEST(Curvature, is_symmetric_about_both_axes) {
+    float ax, ay, bx, by;
+    barrel(0.35f,  0.6f,  0.4f, ax, ay);
+    barrel(0.35f, -0.6f, -0.4f, bx, by);
+    CHECK_NEAR(ax, -bx, 1e-6);
+    CHECK_NEAR(ay, -by, 1e-6);
+}
+
+TEST(Curvature, zero_strength_is_identity) {
+    float ox, oy;
+    barrel(0.0f, 0.73f, -0.41f, ox, oy);
+    CHECK_NEAR(ox,  0.73, 1e-6);
+    CHECK_NEAR(oy, -0.41, 1e-6);
+}

@@ -337,6 +337,19 @@ endif()
 # Platform-Specific Configuration
 #===============================================================================
 
+#===============================================================================
+# Optional code signing
+#
+# Unsigned binaries trip Windows SmartScreen on first run. Signing needs a
+# certificate we cannot ship, so it is opt-in: point OSCILLOPLOT_SIGN_PFX at a
+# .pfx and pass the password to enable it. Without those the build is unchanged.
+#===============================================================================
+
+set(OSCILLOPLOT_SIGN_PFX "" CACHE FILEPATH "Authenticode .pfx used to sign the Windows exe")
+set(OSCILLOPLOT_SIGN_PASSWORD "" CACHE STRING "Password for OSCILLOPLOT_SIGN_PFX")
+set(OSCILLOPLOT_SIGN_TIMESTAMP "http://timestamp.digicert.com"
+    CACHE STRING "RFC3161 timestamp server, so signatures outlive the certificate")
+
 if(WIN32)
     # Application manifest: declares Windows 10/11 support (so version APIs and
     # shell behaviour aren't shimmed), per-monitor-v2 DPI awareness, long paths,
@@ -348,6 +361,26 @@ if(WIN32)
     string(REPLACE "\\" "\\\\" OSCILLOPLOT_ICO_PATH "${OSCILLOPLOT_ICO_NATIVE}")
     configure_file(assets/windows/oscilloplot.rc.in ${CMAKE_BINARY_DIR}/oscilloplot.rc @ONLY)
     target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/oscilloplot.rc)
+
+    if(OSCILLOPLOT_SIGN_PFX)
+        find_program(SIGNTOOL_EXE signtool
+            HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/10/bin"
+            PATH_SUFFIXES x64
+            DOC "Windows SDK signtool.exe")
+        if(SIGNTOOL_EXE)
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND "${SIGNTOOL_EXE}" sign
+                        /f "${OSCILLOPLOT_SIGN_PFX}"
+                        /p "${OSCILLOPLOT_SIGN_PASSWORD}"
+                        /fd SHA256
+                        /tr "${OSCILLOPLOT_SIGN_TIMESTAMP}" /td SHA256
+                        "$<TARGET_FILE:${PROJECT_NAME}>"
+                COMMENT "Signing ${PROJECT_NAME}")
+            message(STATUS "Code signing:   enabled")
+        else()
+            message(WARNING "OSCILLOPLOT_SIGN_PFX is set but signtool.exe was not found")
+        endif()
+    endif()
 
     if(OSCILLOPLOT_STANDALONE)
         # GUI subsystem: launching from Explorer must not flash a console

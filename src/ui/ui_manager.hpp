@@ -76,7 +76,7 @@ struct PhosphorSettings {
     //--------------------------------------------------------------------------
     // CRT Simulation
     //--------------------------------------------------------------------------
-    float screenCurvature = 0.0f;       // CRT screen curvature simulation (0-0.1)
+    float screenCurvature = 0.0f;       // Barrel distortion of the beam (0-1)
     float vignetteStrength = 0.15f;     // Edge darkening (0-1)
     float noiseAmount = 0.0f;           // Analog noise speckle (0-0.1)
     float scanlineEffect = 0.0f;        // Raster scanline banding (0-1)
@@ -290,6 +290,13 @@ private:
 
     // CRT post-effects drawn over the trace (vignette, scanlines, noise)
     void renderCrtOverlays(const ImVec2& plotPos, const ImVec2& plotSize);
+
+    // Bend the trace outward as a curved tube would. Applied to the beam
+    // coordinates rather than as a post-process, since the scope is drawn
+    // from line primitives and there is no framebuffer to resample.
+    // Returns true if anything was written to outX/outY.
+    bool applyCurvature(const float* inX, const float* inY, size_t count,
+                        float* outX, float* outY) const;
 
     // Helper: Generate pattern from harmonics
     void generateHarmonicsPattern(App& app);

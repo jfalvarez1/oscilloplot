@@ -16,6 +16,15 @@ A high-performance, cross-platform oscilloscope XY audio generator written in C+
 Both are built and verified by [CI](.github/workflows/release.yml) on every push.
 
 <details>
+<summary><strong>First launch on Windows</strong></summary>
+
+The executable is not code-signed, so SmartScreen shows a
+"Windows protected your PC" prompt the first time. Click **More info** then
+**Run anyway**. Signing requires a paid Authenticode certificate; the build
+supports it via `-DOSCILLOPLOT_SIGN_PFX=...` if you have one.
+</details>
+
+<details>
 <summary><strong>First launch on macOS</strong></summary>
 
 The app is ad-hoc signed rather than notarized, so Gatekeeper will block the
@@ -95,8 +104,8 @@ step 2 with the phosphor beam tracing a circle:
   undo/redo, save/load as `.oseq`, and export the whole sequence as one WAV.
 - **Presets**: save a pattern together with every effect setting as one file,
   and reload the whole look later
-- **CRT simulation**: phosphor persistence and glow, plus vignette, scanlines
-  and analog noise
+- **CRT simulation**: phosphor persistence and glow, plus vignette, scanlines,
+  analog noise and screen curvature
 - **Rich effects pipeline**:
   - Rotation (static/animated)
   - X/Y axis fading
@@ -442,7 +451,6 @@ Connect to an oscilloscope in X-Y mode to visualize the patterns on hardware.
 
 - [ ] MIDI input support
 - [ ] VST plugin hosting
-- [ ] Screen curvature (needs a shader pass)
 - [x] Pattern sequencing (Sequencer panel)
 - [x] 3D shape import (OBJ files)
 

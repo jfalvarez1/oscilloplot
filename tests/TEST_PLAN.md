@@ -90,3 +90,40 @@ Run against a release build before tagging.
 - [ ] Phosphor presets change the trace colour
 - [ ] Effects are visible on the scope while stopped, not only during playback
 - [ ] Export Image writes a PNG matching what is on screen
+
+---
+
+## Execution record — v1.2.0 (2026-08-24, Windows x64)
+
+Automated suite: **63/63 pass** on Windows and macOS in CI
+(`ctest --test-dir build -C Release`).
+
+Manual checklist executed by driving the GUI and inspecting screenshots:
+
+| Check | Result |
+|-------|--------|
+| Launches with no console window, app icon in title bar | PASS |
+| Title reads `Oscilloplot 1.2.0 - XY Audio Generator` | PASS |
+| `Help > About` shows version, GL renderer, build date, correct repo URL | PASS — `3.3.0 NVIDIA 610.47` |
+| Fresh `imgui.ini` gives the default layout with the menu bar visible | PASS |
+| Closing the window exits with code 0 | PASS (repeated 3x) |
+| OpenGL fallback selects the best available tier | PASS — `Using OpenGL 3.3 Core` |
+| File menu exposes Load/Save Pattern, Open Recent, Save/Load Preset, Export WAV, Export Image, Exit | PASS |
+| `Open Recent` correctly greyed while the list is empty | PASS |
+| `Export Image` (Ctrl+I) writes a 1024x1024 PNG matching the scope | PASS — 439 KB, correct glow and velocity brightness |
+| `Save Preset` opens a save dialog with the `.opreset` filter | PASS |
+| `Bypass All` checks, shows its tooltip, and greys the effect controls | PASS |
+| Generators redraw live while dragging their sliders | PASS (verified during development) |
+| Sound Pad edits apply to the scope immediately | PASS (verified during development) |
+| CRT vignette, scanlines and noise render over the trace | PASS — verified at 5x zoom |
+
+### Not executed here
+
+- **Load/Save round-trips through the native file dialogs.** The dialogs open
+  with the right filters and the underlying formats are covered by unit tests
+  (`FileIO`, `Sequence`, `Preset` suites), but automating a modal Windows file
+  dialog proved unreliable and disruptive on a machine in use. Worth a manual
+  pass before a major release.
+- **Real oscilloscope output.** Needs hardware.
+- **macOS behaviour beyond the build.** CI proves it compiles, links, is arm64
+  and self-contained; nobody has confirmed the window renders on a Mac.

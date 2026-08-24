@@ -1392,6 +1392,10 @@ void UIManager::renderPhosphorScope(App& app) {
             size_t count = app.getAudioEngine().getVizSamples(m_vizX, m_vizY,
                            static_cast<size_t>(m_phosphor.trailSamples));
 
+            // Curvature acts on the beam coordinates, in place - the viz buffer
+            // is scratch that is refilled from the engine every frame.
+            applyCurvature(m_vizX, m_vizY, count, m_vizX, m_vizY);
+
             if (count > 1) {
                 //--------------------------------------------------------------
                 // STEP 1: Calculate velocity-based intensity for each segment
@@ -1558,6 +1562,18 @@ void UIManager::renderPhosphorScope(App& app) {
                     px = source.xData();
                     py = source.yData();
                 }
+
+                // Bend the trace as a curved tube would, into the spare
+                // intensity buffer so the source pattern is left untouched.
+                if (pCount > 0 && pCount <= VIZ_SAMPLES) {
+                    static std::vector<float> curveX, curveY;
+                    curveX.resize(pCount);
+                    curveY.resize(pCount);
+                    if (applyCurvature(px, py, pCount, curveX.data(), curveY.data())) {
+                        px = curveX.data();
+                        py = curveY.data();
+                    }
+                }
             }
 
             if (pCount > 0) {
@@ -1600,6 +1616,25 @@ void UIManager::renderPhosphorScope(App& app) {
     }
 
     ImPlot::PopStyleColor(3);
+}
+
+bool UIManager::applyCurvature(const float* inX, const float* inY, size_t count,
+                               float* outX, float* outY) const {
+    if (m_phosphor.screenCurvature <= 0.001f || count == 0) return false;
+
+    // Barrel distortion: points are pushed outward in proportion to the square
+    // of their distance from centre, so the middle of the tube stays put while
+    // the edges bow out. Normalised so a point at the corner of the graticule
+    // moves by roughly `screenCurvature` of a division.
+    const float k = m_phosphor.screenCurvature * 0.35f;
+    for (size_t i = 0; i < count; ++i) {
+        const float x = inX[i], y = inY[i];
+        const float r2 = x * x + y * y;
+        const float f = 1.0f + k * r2;
+        outX[i] = x * f;
+        outY[i] = y * f;
+    }
+    return true;
 }
 
 void UIManager::renderCrtOverlays(const ImVec2& pos, const ImVec2& size) {
@@ -3741,7 +3776,10 @@ void UIManager::renderDisplaySettings(App& app) {
         ImGui::SliderFloat("Analog Noise", &m_phosphor.noiseAmount, 0.0f, 0.1f);
         if (ImGui::IsItemHovered()) ImGui::SetTooltip("Sparse phosphor speckle");
 
-        ImGui::TextDisabled("Screen curvature needs a shader pass - not implemented");
+        ImGui::SliderFloat("Curvature", &m_phosphor.screenCurvature, 0.0f, 1.0f);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Bow the trace outward as a curved tube would");
+        }
     }
 
     //==========================================================================
