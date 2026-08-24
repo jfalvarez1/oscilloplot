@@ -91,8 +91,12 @@ step 2 with the phosphor beam tracing a circle:
   - **Bake Rotation**: freeze N animation frames into one long pattern so
     playback and WAV export actually rotate.
 - **Sequencer** (View > Sequencer): capture patterns as steps, reorder and
-  rename them, set per-step cycle counts, loop, save/load as `.oseq`, and
-  export the whole sequence as one WAV.
+  rename them, set per-step cycle counts, loop, **crossfade between steps**,
+  undo/redo, save/load as `.oseq`, and export the whole sequence as one WAV.
+- **Presets**: save a pattern together with every effect setting as one file,
+  and reload the whole look later
+- **CRT simulation**: phosphor persistence and glow, plus vignette, scanlines
+  and analog noise
 - **Rich effects pipeline**:
   - Rotation (static/animated)
   - X/Y axis fading
@@ -108,7 +112,9 @@ step 2 with the phosphor beam tracing a circle:
     or MATLAB-style `.m` scripts
   - Save patterns as text or `.osc` binary
   - Export stereo WAV (left = X, right = Y) at the configured rate and duration
-  - Import Wavefront `.obj` meshes; save/load sequences as `.oseq`
+  - Export the scope view as a PNG (Ctrl+I)
+  - Recent files list; import Wavefront `.obj` meshes; save/load sequences as
+    `.oseq` and presets as `.opreset`
 - **Standalone Windows build** - a single `oscilloplot.exe` with no DLLs and no
   VC++ Redistributable, running on any Windows 11 machine (SSE2 baseline,
   OpenGL 3.3 → 3.2 → 3.0 fallback, and audio is optional)
@@ -116,6 +122,19 @@ step 2 with the phosphor beam tracing a circle:
 
 📖 **[Full User Manual](docs/user_manual.html)** - complete reference for every
 panel, with setup instructions for connecting a real oscilloscope.
+
+## Development
+
+```bash
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="[vcpkg-root]/scripts/buildsystems/vcpkg.cmake"
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+The unit suite covers patterns, file formats, OBJ import, sequences, presets,
+undo, DSP and the generators, and runs on both platforms in CI. Anything
+needing a window or an audio device is covered by the manual checklist in
+[tests/TEST_PLAN.md](tests/TEST_PLAN.md).
 
 ---
 
@@ -423,6 +442,7 @@ Connect to an oscilloscope in X-Y mode to visualize the patterns on hardware.
 
 - [ ] MIDI input support
 - [ ] VST plugin hosting
+- [ ] Screen curvature (needs a shader pass)
 - [x] Pattern sequencing (Sequencer panel)
 - [x] 3D shape import (OBJ files)
 

@@ -1014,7 +1014,7 @@
         <span class="brand-label top-right">HIGH PERFORMANCE C++</span>
         <h1>OSCILLOPLOT</h1>
         <div class="subtitle">XY AUDIO OSCILLOSCOPE GENERATOR</div>
-        <div class="version">// C++ EDITION - USER MANUAL v1.1.0 //</div>
+        <div class="version">// C++ EDITION - USER MANUAL v1.2.0 //</div>
         <div class="waveform-indicator">
             <svg viewBox="0 0 100 30">
                 <path d="M0,15 Q12.5,5 25,15 T50,15 T75,15 T100,15"></path>
@@ -1160,9 +1160,57 @@
                 <li><strong>Graticule</strong> - Toggle grid with adjustable opacity</li>
             </ul>
             <div class="note">
-                The CRT post-effects (curvature, vignette, analog noise, scanlines) are not yet
-                implemented in the renderer, so their controls are not shown.
+                Vignette, scanlines and analog noise are implemented and live under
+                <strong>CRT Effects (Advanced)</strong>. Screen curvature would need a shader pass
+                and is not implemented.
             </div>
+
+            <h3>New in v1.2.0</h3>
+
+            <h4>Presets</h4>
+            <p><strong>File &gt; Save/Load Preset</strong> stores a pattern together with every
+               effect setting, so a whole look is one file. Presets written by a newer build still
+               open in an older one - unknown settings are carried through untouched.</p>
+
+            <h4>Recent Files</h4>
+            <p><strong>File &gt; Open Recent</strong> lists the last five patterns, presets and
+               sequences. Files that have been moved or deleted drop off the list automatically.</p>
+
+            <h4>Sequencer Crossfade</h4>
+            <p>Steps can blend into one another instead of switching abruptly. The
+               <strong>Crossfade</strong> slider sets what fraction of each step is spent fading;
+               patterns of different lengths blend cleanly.</p>
+
+            <h4>Effects While Stopped</h4>
+            <p>Effects now show on the scope without pressing Play, so they can be tuned by eye.
+               Toggle with <strong>FX Preview</strong> in the scope toolbar.</p>
+
+            <h4>Effects Master Controls</h4>
+            <p><strong>Bypass All</strong> silences the chain while remembering the settings, and
+               <strong>Reset All</strong> returns everything to defaults.</p>
+
+            <h4>Undo Everywhere</h4>
+            <p>The Sound Pad and Sequencer now have undo/redo alongside the Drawing Canvas.</p>
+
+            <h4>Bake to Sequencer</h4>
+            <p>Bake Rotation can write one sequencer step per frame instead of a single long
+               pattern, removing the 65,536-point limit and leaving the result editable.</p>
+
+            <h4>Export Image</h4>
+            <p><strong>File &gt; Export Image</strong> (Ctrl+I) renders the scope to a PNG using the
+               same beam model as the live display, at 1024x1024 rather than screen resolution.</p>
+
+            <h4>Vectorizer Live Preview</h4>
+            <p>With <strong>Live preview</strong> enabled the image re-processes whenever a setting
+               changes, on release rather than during a drag.</p>
+
+            <h4>CRT Effects</h4>
+            <p>Vignette, scanlines and analog noise are implemented and adjustable under
+               <strong>Display Settings &gt; CRT Effects</strong>.</p>
+
+            <h4>Tested</h4>
+            <p>A unit suite covering patterns, file formats, OBJ import, sequences, presets, undo,
+               DSP and generators runs on every build on both platforms.</p>
 
             <h3>New in v1.1.0</h3>
 
@@ -1334,6 +1382,7 @@ cmake --build build
                     <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>Load pattern</td></tr>
                     <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save pattern</td></tr>
                     <tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Export WAV</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Export Image (PNG)</td></tr>
                     <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo stroke (Drawing Canvas focused)</td></tr>
                     <tr><td><kbd>Alt</kbd> + <kbd>F4</kbd></td><td>Exit application</td></tr>
                 </tbody>

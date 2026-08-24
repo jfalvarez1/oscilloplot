@@ -21,7 +21,7 @@ if(OSCILLOPLOT_STANDALONE AND CMAKE_HOST_WIN32 AND NOT DEFINED VCPKG_TARGET_TRIP
     endif()
 endif()
 
-project(oscilloplot VERSION 1.1.0 LANGUAGES CXX)
+project(oscilloplot VERSION 1.2.0 LANGUAGES CXX)
 
 # Single source of truth for the version string shown in the title bar,
 # the About box, and the Windows version resource.
