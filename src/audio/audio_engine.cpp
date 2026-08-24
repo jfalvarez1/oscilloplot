@@ -131,6 +131,16 @@ void AudioEngine::setPattern(const Pattern& pattern) {
     m_playbackPosition.store(0, std::memory_order_relaxed);
 }
 
+void AudioEngine::setPatternContinuous(const Pattern& pattern) {
+    size_t count = std::min(pattern.size(), MAX_PATTERN_SIZE);
+    if (count == 0) return;
+
+    std::memcpy(m_patternX, pattern.x.data(), count * sizeof(float));
+    std::memcpy(m_patternY, pattern.y.data(), count * sizeof(float));
+    m_patternSize.store(count, std::memory_order_release);
+    // Deliberately no m_playbackPosition reset - see the header.
+}
+
 void AudioEngine::setSampleRate(int baseRate, int multiplier) {
     m_baseSampleRate = baseRate;
     m_multiplier = multiplier;

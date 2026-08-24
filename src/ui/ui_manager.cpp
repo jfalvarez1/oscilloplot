@@ -23,6 +23,12 @@
 #include <sstream>
 #include <set>
 #include <cfloat>
+#include <vector>
+
+// Single-header PNG writer, matching the existing stb usage for image loading.
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBI_WRITE_NO_STDIO_STDARG
+#include <stb_image_write.h>
 
 #ifndef OSCILLOPLOT_VERSION
 #define OSCILLOPLOT_VERSION "dev"
@@ -95,6 +101,7 @@ UIManager::~UIManager() = default;
 
 bool UIManager::init() {
     applyStyle();
+    loadRecentFiles();
     return true;
 }
 
@@ -164,6 +171,12 @@ void UIManager::render(App& app) {
 
 namespace {
 
+// Write an RGBA buffer out as a PNG. Isolated so the export path has one place
+// to change if the encoder ever does.
+bool writePng(const std::string& path, const unsigned char* rgba, int w, int h) {
+    return stbi_write_png(path.c_str(), w, h, 4, rgba, w * 4) != 0;
+}
+
 // Lowercase extension of a path, including the dot (".txt"), or "" if none.
 std::string fileExtension(const std::string& path) {
     size_t slash = path.find_last_of("/\\");
@@ -190,20 +203,7 @@ void UIManager::setStatus(const std::string& message, bool isError) {
     m_statusTime = ImGui::GetTime();
 }
 
-void UIManager::doLoadPattern(App& app) {
-    auto selection = pfd::open_file(
-        "Load Pattern",
-        "",
-        { "Pattern Files", "*.txt *.csv *.dat *.osc *.m",
-          "Text (X,Y per line)", "*.txt *.csv *.dat",
-          "Oscilloplot Binary", "*.osc",
-          "MATLAB Script", "*.m",
-          "All Files", "*" }
-    ).result();
-
-    if (selection.empty()) return;
-
-    const std::string& path = selection[0];
+bool UIManager::loadPatternFile(App& app, const std::string& path) {
     std::string ext = fileExtension(path);
 
     Pattern loaded;
@@ -218,16 +218,22 @@ void UIManager::doLoadPattern(App& app) {
 
     if (!ok || loaded.empty()) {
         setStatus("Failed to load " + path, true);
-        return;
+        // A file that will not open should not linger in the recent list.
+        m_recentFiles.remove(path);
+        saveRecentFiles();
+        return false;
     }
 
-    // A loaded pattern becomes the active source; stop the 3D animation from
-    // overwriting it on the next frame.
+    // A loaded pattern becomes the active source; stop the 3D animation and
+    // the live generator sliders from overwriting it on the next frame.
     claimPatternSource();
 
     Pattern& pattern = app.getPattern();
     pattern = loaded;
     app.getAudioEngine().setPattern(pattern);
+
+    m_recentFiles.add(path);
+    saveRecentFiles();
 
     // setPattern() silently clamps to MAX_PATTERN_SIZE, so a long capture would
     // otherwise appear to load fine and then play back only its opening slice.
@@ -240,6 +246,22 @@ void UIManager::doLoadPattern(App& app) {
     } else {
         setStatus("Loaded " + std::to_string(pattern.size()) + " points");
     }
+    return true;
+}
+
+void UIManager::doLoadPattern(App& app) {
+    auto selection = pfd::open_file(
+        "Load Pattern",
+        "",
+        { "Pattern Files", "*.txt *.csv *.dat *.osc *.m",
+          "Text (X,Y per line)", "*.txt *.csv *.dat",
+          "Oscilloplot Binary", "*.osc",
+          "MATLAB Script", "*.m",
+          "All Files", "*" }
+    ).result();
+
+    if (selection.empty()) return;
+    loadPatternFile(app, selection[0]);
 }
 
 void UIManager::doSavePattern(App& app) {
@@ -470,15 +492,15 @@ void UIManager::placeWindow(float x, float y, float w, float h) {
 //==============================================================================
 
 void UIManager::sequencerApplyStep(App& app, int index) {
-    if (index < 0 || index >= static_cast<int>(m_sequencer.steps.size())) return;
+    if (index < 0 || index >= static_cast<int>(m_sequencer.seq.steps.size())) return;
     m_sequencer.currentStep = index;
-    app.getPattern() = m_sequencer.steps[index].pattern;
+    app.getPattern() = m_sequencer.seq.steps[index].pattern;
     app.getAudioEngine().setPattern(app.getPattern());
     m_sequencer.cyclesAtStepStart = app.getAudioEngine().getPatternCycleCount();
 }
 
 void UIManager::sequencerStart(App& app) {
-    if (m_sequencer.steps.empty()) {
+    if (m_sequencer.seq.steps.empty()) {
         setStatus("Sequence is empty - capture a pattern first", true);
         return;
     }
@@ -519,31 +541,56 @@ void UIManager::updateSequencer(App& app) {
         return;
     }
     if (m_sequencer.currentStep < 0 ||
-        m_sequencer.currentStep >= static_cast<int>(m_sequencer.steps.size())) {
+        m_sequencer.currentStep >= static_cast<int>(m_sequencer.seq.steps.size())) {
         sequencerStop(app);
         return;
     }
 
-    const SequenceStep& step = m_sequencer.steps[m_sequencer.currentStep];
-    uint32_t done = app.getAudioEngine().getPatternCycleCount() -
-                    m_sequencer.cyclesAtStepStart;
-    if (done >= static_cast<uint32_t>(std::max(1, step.cycles))) {
-        int next = m_sequencer.currentStep + 1;
-        if (next >= static_cast<int>(m_sequencer.steps.size())) {
-            if (m_sequencer.loop) {
-                next = 0;
-            } else {
-                sequencerStop(app);
-                setStatus("Sequence finished");
-                return;
-            }
+    const SequenceStep& step = m_sequencer.seq.steps[m_sequencer.currentStep];
+    const uint32_t total = static_cast<uint32_t>(std::max(1, step.cycles));
+    const uint32_t done = app.getAudioEngine().getPatternCycleCount() -
+                          m_sequencer.cyclesAtStepStart;
+
+    // Index of whatever plays after this step (may wrap, may not exist).
+    int next = m_sequencer.currentStep + 1;
+    bool haveNext = true;
+    if (next >= static_cast<int>(m_sequencer.seq.steps.size())) {
+        if (m_sequencer.seq.loop) next = 0;
+        else haveNext = false;
+    }
+
+    if (done >= total) {
+        if (!haveNext) {
+            sequencerStop(app);
+            setStatus("Sequence finished");
+            return;
         }
         sequencerApplyStep(app, next);
+        return;
+    }
+
+    // Crossfade: over the final `crossfade` fraction of the step, blend this
+    // pattern into the next one so steps flow instead of hard-switching.
+    const float cf = m_sequencer.seq.crossfade;
+    if (cf > 0.001f && haveNext && next != m_sequencer.currentStep) {
+        const float fadeCycles = cf * static_cast<float>(total);
+        const float remaining  = static_cast<float>(total - done);
+        if (fadeCycles >= 1.0f && remaining <= fadeCycles) {
+            float t = 1.0f - (remaining / fadeCycles);   // 0 -> 1 across the fade
+            t = std::clamp(t, 0.0f, 1.0f);
+
+            blendPatterns(step.pattern, m_sequencer.seq.steps[next].pattern,
+                          t, m_sequencer.blendScratch);
+            app.getPattern() = m_sequencer.blendScratch;
+            // Continuous swap: resetting the position here would stall the
+            // cycle counter this very loop depends on.
+            app.getAudioEngine().setPatternContinuous(app.getPattern());
+        }
     }
 }
 
 void UIManager::sequencerSave() {
-    if (m_sequencer.steps.empty()) {
+    if (m_sequencer.seq.empty()) {
         setStatus("Sequence is empty - nothing to save", true);
         return;
     }
@@ -552,27 +599,16 @@ void UIManager::sequencerSave() {
         { "Oscilloplot Sequence", "*.oseq", "All Files", "*" }
     ).result();
     if (path.empty()) return;
-    if (path.size() < 5 || path.substr(path.size() - 5) != ".oseq") path += ".oseq";
+    path = ensureExtension(path, ".oseq");
 
-    std::ofstream f(path);
-    if (!f.is_open()) {
-        setStatus("Failed to create " + path, true);
-        return;
-    }
-    f << "OSEQ 1\n";
-    f << "loop " << (m_sequencer.loop ? 1 : 0) << "\n";
-    f << "steps " << m_sequencer.steps.size() << "\n";
-    for (const auto& step : m_sequencer.steps) {
-        f << "step " << step.cycles << " " << step.pattern.size()
-          << " " << step.name << "\n";
-        for (size_t i = 0; i < step.pattern.size(); ++i) {
-            f << step.pattern.x[i] << " " << step.pattern.y[i] << "\n";
-        }
-    }
-    if (f.good()) {
-        setStatus("Saved sequence (" + std::to_string(m_sequencer.steps.size()) + " steps)");
+    std::string error;
+    if (saveSequence(path, m_sequencer.seq, error)) {
+        m_recentFiles.add(path);
+        saveRecentFiles();
+        setStatus("Saved sequence (" +
+                  std::to_string(m_sequencer.seq.size()) + " steps)");
     } else {
-        setStatus("Failed writing " + path, true);
+        setStatus("Failed to save sequence: " + error, true);
     }
 }
 
@@ -582,68 +618,32 @@ void UIManager::sequencerLoad() {
         { "Oscilloplot Sequence", "*.oseq", "All Files", "*" }
     ).result();
     if (selection.empty()) return;
+    loadSequenceFile(selection[0]);
+}
 
-    std::ifstream f(selection[0]);
-    if (!f.is_open()) {
-        setStatus("Failed to open " + selection[0], true);
+void UIManager::loadSequenceFile(const std::string& path) {
+    Sequence loaded;
+    std::string error;
+    if (!loadSequence(path, loaded, error)) {
+        setStatus("Failed to load sequence: " + error, true);
+        m_recentFiles.remove(path);
+        saveRecentFiles();
         return;
     }
 
-    std::string magic;
-    int version = 0;
-    f >> magic >> version;
-    if (magic != "OSEQ" || version != 1) {
-        setStatus("Not an Oscilloplot sequence file", true);
-        return;
-    }
+    m_sequencer.seq = std::move(loaded);
+    m_sequencer.playing = false;
+    m_sequencer.currentStep = -1;
+    m_sequencerUndo.clear();
 
-    SequencerState loaded;
-    std::string key;
-    int loopFlag = 1;
-    size_t stepCount = 0;
-    f >> key >> loopFlag;      // loop N
-    f >> key >> stepCount;     // steps N
-    if (!f.good() || stepCount > 10000) {
-        setStatus("Sequence file is malformed", true);
-        return;
-    }
-
-    for (size_t sIdx = 0; sIdx < stepCount; ++sIdx) {
-        SequenceStep step;
-        size_t npoints = 0;
-        f >> key >> step.cycles >> npoints;   // step C N name...
-        std::string nameRest;
-        std::getline(f, nameRest);
-        size_t begin = nameRest.find_first_not_of(" \t");
-        if (begin != std::string::npos) nameRest = nameRest.substr(begin);
-        // Trim trailing CR from CRLF files read in text mode on non-Windows
-        if (!nameRest.empty() && nameRest.back() == '\r') nameRest.pop_back();
-        snprintf(step.name, sizeof(step.name), "%s",
-                 nameRest.empty() ? "Step" : nameRest.c_str());
-
-        if (!f.good() || npoints > AudioEngine::MAX_PATTERN_SIZE) {
-            setStatus("Sequence file is malformed", true);
-            return;
-        }
-        step.pattern.reserve(npoints);
-        for (size_t i = 0; i < npoints; ++i) {
-            float x, y;
-            if (!(f >> x >> y)) {
-                setStatus("Sequence file is truncated", true);
-                return;
-            }
-            step.pattern.push_back(x, y);
-        }
-        loaded.steps.push_back(std::move(step));
-    }
-
-    loaded.loop = (loopFlag != 0);
-    m_sequencer = std::move(loaded);
-    setStatus("Loaded sequence (" + std::to_string(m_sequencer.steps.size()) + " steps)");
+    m_recentFiles.add(path);
+    saveRecentFiles();
+    setStatus("Loaded sequence (" +
+              std::to_string(m_sequencer.seq.size()) + " steps)");
 }
 
 void UIManager::sequencerExportWav(App& app) {
-    if (m_sequencer.steps.empty()) {
+    if (m_sequencer.seq.steps.empty()) {
         setStatus("Sequence is empty - nothing to export", true);
         return;
     }
@@ -661,7 +661,7 @@ void UIManager::sequencerExportWav(App& app) {
     std::vector<float> buffer;
     bool truncated = false;
 
-    for (const auto& step : m_sequencer.steps) {
+    for (const auto& step : m_sequencer.seq.steps) {
         if (step.pattern.empty()) continue;
         int cycles = std::max(1, step.cycles);
         for (int c = 0; c < cycles && !truncated; ++c) {
@@ -708,7 +708,43 @@ void UIManager::renderSequencer(App& app) {
         if (ImGui::Button("Play Sequence", ImVec2(-1, 34))) sequencerStart(app);
         ImGui::PopStyleColor();
     }
-    ImGui::Checkbox("Loop", &m_sequencer.loop);
+    ImGui::Checkbox("Loop", &m_sequencer.seq.loop);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(140);
+    ImGui::SliderFloat("Crossfade", &m_sequencer.seq.crossfade, 0.0f, 0.5f, "%.2f");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Fraction of each step spent blending into the next.\n0 = hard switch.");
+    }
+
+    ImGui::Separator();
+
+    // Undo / Redo for structural edits (capture, reorder, delete)
+    {
+        float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+        if (!m_sequencerUndo.canUndo()) ImGui::BeginDisabled();
+        if (ImGui::Button("Undo##seq", ImVec2(w, 0))) {
+            if (const Sequence* prev = m_sequencerUndo.undo(m_sequencer.seq)) {
+                m_sequencer.seq = *prev;
+                if (m_sequencer.currentStep >=
+                    static_cast<int>(m_sequencer.seq.steps.size())) {
+                    sequencerStop(app);
+                }
+            }
+        }
+        if (!m_sequencerUndo.canUndo()) ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (!m_sequencerUndo.canRedo()) ImGui::BeginDisabled();
+        if (ImGui::Button("Redo##seq", ImVec2(w, 0))) {
+            if (const Sequence* next = m_sequencerUndo.redo(m_sequencer.seq)) {
+                m_sequencer.seq = *next;
+                if (m_sequencer.currentStep >=
+                    static_cast<int>(m_sequencer.seq.steps.size())) {
+                    sequencerStop(app);
+                }
+            }
+        }
+        if (!m_sequencerUndo.canRedo()) ImGui::EndDisabled();
+    }
 
     ImGui::Separator();
 
@@ -718,11 +754,12 @@ void UIManager::renderSequencer(App& app) {
         if (current.empty()) {
             setStatus("Current pattern is empty", true);
         } else {
+            m_sequencerUndo.push(m_sequencer.seq);
             SequenceStep step;
             step.pattern = current;
             snprintf(step.name, sizeof(step.name), "Step %d",
-                     static_cast<int>(m_sequencer.steps.size()) + 1);
-            m_sequencer.steps.push_back(std::move(step));
+                     static_cast<int>(m_sequencer.seq.steps.size()) + 1);
+            m_sequencer.seq.steps.push_back(std::move(step));
         }
     }
 
@@ -731,8 +768,8 @@ void UIManager::renderSequencer(App& app) {
     int removeIdx = -1, moveUpIdx = -1, moveDownIdx = -1;
 
     ImGui::BeginChild("StepList", ImVec2(0, -70), true);
-    for (int i = 0; i < static_cast<int>(m_sequencer.steps.size()); ++i) {
-        SequenceStep& step = m_sequencer.steps[i];
+    for (int i = 0; i < static_cast<int>(m_sequencer.seq.steps.size()); ++i) {
+        SequenceStep& step = m_sequencer.seq.steps[i];
         ImGui::PushID(i);
 
         bool isCurrent = seqPlaying && (i == m_sequencer.currentStep);
@@ -767,13 +804,13 @@ void UIManager::renderSequencer(App& app) {
         ImGui::SameLine();
         if (ImGui::SmallButton("^") && i > 0) moveUpIdx = i;
         ImGui::SameLine();
-        if (ImGui::SmallButton("v") && i + 1 < static_cast<int>(m_sequencer.steps.size())) moveDownIdx = i;
+        if (ImGui::SmallButton("v") && i + 1 < static_cast<int>(m_sequencer.seq.steps.size())) moveDownIdx = i;
         ImGui::SameLine();
         if (ImGui::SmallButton("X")) removeIdx = i;
 
         ImGui::PopID();
     }
-    if (m_sequencer.steps.empty()) {
+    if (m_sequencer.seq.steps.empty()) {
         ImGui::TextDisabled("No steps yet.");
         ImGui::TextWrapped("Make a pattern with any generator, then press "
                            "'+ Capture Current Pattern' to add it here.");
@@ -782,26 +819,30 @@ void UIManager::renderSequencer(App& app) {
 
     // Structural edits happen outside the loop; adjust indices so a playing
     // sequence keeps pointing at the same step.
+    if (moveUpIdx > 0 || moveDownIdx >= 0 || removeIdx >= 0) {
+        m_sequencerUndo.push(m_sequencer.seq);
+    }
+
     if (moveUpIdx > 0) {
-        std::swap(m_sequencer.steps[moveUpIdx], m_sequencer.steps[moveUpIdx - 1]);
+        std::swap(m_sequencer.seq.steps[moveUpIdx], m_sequencer.seq.steps[moveUpIdx - 1]);
         if (m_sequencer.currentStep == moveUpIdx) m_sequencer.currentStep--;
         else if (m_sequencer.currentStep == moveUpIdx - 1) m_sequencer.currentStep++;
     }
     if (moveDownIdx >= 0) {
-        std::swap(m_sequencer.steps[moveDownIdx], m_sequencer.steps[moveDownIdx + 1]);
+        std::swap(m_sequencer.seq.steps[moveDownIdx], m_sequencer.seq.steps[moveDownIdx + 1]);
         if (m_sequencer.currentStep == moveDownIdx) m_sequencer.currentStep++;
         else if (m_sequencer.currentStep == moveDownIdx + 1) m_sequencer.currentStep--;
     }
     if (removeIdx >= 0) {
-        m_sequencer.steps.erase(m_sequencer.steps.begin() + removeIdx);
-        if (m_sequencer.steps.empty()) {
+        m_sequencer.seq.steps.erase(m_sequencer.seq.steps.begin() + removeIdx);
+        if (m_sequencer.seq.steps.empty()) {
             sequencerStop(app);
         } else if (m_sequencer.currentStep > removeIdx) {
             m_sequencer.currentStep--;
         } else if (m_sequencer.currentStep == removeIdx) {
             // The playing step vanished; jump to what now sits at its index
             int next = std::min(removeIdx,
-                                static_cast<int>(m_sequencer.steps.size()) - 1);
+                                static_cast<int>(m_sequencer.seq.steps.size()) - 1);
             if (m_sequencer.playing) sequencerApplyStep(app, next);
         }
     }
@@ -817,6 +858,205 @@ void UIManager::renderSequencer(App& app) {
     ImGui::End();
 }
 
+//==============================================================================
+// Presets, recent files and image export
+//==============================================================================
+
+std::string UIManager::recentFilesPath() {
+    // Sits beside imgui.ini, in whatever directory the app runs from.
+    return "oscilloplot_recent.txt";
+}
+
+void UIManager::loadRecentFiles() {
+    m_recentFiles.load(recentFilesPath());
+    // Silently drop anything that has since been deleted or moved.
+    m_recentFiles.pruneMissing();
+}
+
+void UIManager::saveRecentFiles() const {
+    m_recentFiles.save(recentFilesPath());
+}
+
+void UIManager::doSavePreset(App& app) {
+    const Pattern& pattern = app.getPattern();
+    if (pattern.empty()) {
+        setStatus("Nothing to save - pattern is empty", true);
+        return;
+    }
+
+    std::string path = pfd::save_file(
+        "Save Preset", "preset.opreset",
+        { "Oscilloplot Preset", "*.opreset", "All Files", "*" }
+    ).result();
+    if (path.empty()) return;
+    path = ensureExtension(path, ".opreset");
+
+    Preset preset;
+    preset.pattern = pattern;
+    preset.name = RecentFiles::displayName(path);
+    // Strip the extension so the stored name reads as a title.
+    size_t dot = preset.name.find_last_of('.');
+    if (dot != std::string::npos) preset.name = preset.name.substr(0, dot);
+
+    captureEffects(app.getEffects(), preset);
+
+    std::string error;
+    if (savePreset(path, preset, error)) {
+        m_recentFiles.add(path);
+        saveRecentFiles();
+        setStatus("Saved preset with " +
+                  std::to_string(preset.effectValues.size()) + " effect settings");
+    } else {
+        setStatus("Failed to save preset: " + error, true);
+    }
+}
+
+void UIManager::loadPresetFile(App& app, const std::string& path) {
+    Preset preset;
+    std::string error;
+    if (!loadPreset(path, preset, error)) {
+        setStatus("Failed to load preset: " + error, true);
+        m_recentFiles.remove(path);
+        saveRecentFiles();
+        return;
+    }
+
+    claimPatternSource();
+
+    if (!preset.pattern.empty()) {
+        app.getPattern() = preset.pattern;
+        app.getAudioEngine().setPattern(app.getPattern());
+    }
+    applyEffects(preset, app.getEffects());
+
+    m_recentFiles.add(path);
+    saveRecentFiles();
+    setStatus("Loaded preset '" + preset.name + "'");
+}
+
+void UIManager::doLoadPreset(App& app) {
+    auto selection = pfd::open_file(
+        "Load Preset", "",
+        { "Oscilloplot Preset", "*.opreset", "All Files", "*" }
+    ).result();
+    if (selection.empty()) return;
+    loadPresetFile(app, selection[0]);
+}
+
+//------------------------------------------------------------------------------
+// Export the scope view as a PNG.
+//
+// The phosphor display is drawn with ImGui draw-list calls rather than into a
+// texture, so there is no framebuffer to grab. Instead the pattern is rendered
+// again here into an RGBA buffer using the same beam model - velocity-based
+// brightness plus a soft glow - which also means the export is not limited to
+// the on-screen resolution.
+//------------------------------------------------------------------------------
+void UIManager::doExportImage(App& app) {
+    const Pattern& pattern = app.getPattern();
+    if (pattern.size() < 2) {
+        setStatus("Nothing to export - pattern is empty", true);
+        return;
+    }
+
+    std::string path = pfd::save_file(
+        "Export Image", "oscilloplot.png",
+        { "PNG Image", "*.png", "All Files", "*" }
+    ).result();
+    if (path.empty()) return;
+    path = ensureExtension(path, ".png");
+
+    const int size = m_exportImageSize;
+    std::vector<float> energy(static_cast<size_t>(size) * size, 0.0f);
+
+    // Accumulate beam energy along the trace, brighter where the beam moves
+    // slowly - the same relationship the live display uses.
+    const float half = size * 0.5f;
+    const float scale = half * 0.92f;      // leave a small margin
+    const float core = std::max(0.7f, size / 900.0f * m_phosphor.beamWidth);
+    const float halo = core * 3.0f;
+    const int reach = static_cast<int>(halo * 2.5f) + 1;
+
+    for (size_t i = 1; i < pattern.size(); ++i) {
+        const float x0 = half + pattern.x[i - 1] * scale;
+        const float y0 = half - pattern.y[i - 1] * scale;
+        const float x1 = half + pattern.x[i] * scale;
+        const float y1 = half - pattern.y[i] * scale;
+
+        const float dx = x1 - x0, dy = y1 - y0;
+        const float dist = std::sqrt(dx * dx + dy * dy);
+
+        // Slow segments deposit more energy per unit length.
+        const float speedTerm = 1.0f / (1.0f + dist * 0.25f);
+        const float bright = m_phosphor.minBrightness +
+            (m_phosphor.maxBrightness - m_phosphor.minBrightness) *
+            (m_phosphor.velocityEffect * speedTerm + (1.0f - m_phosphor.velocityEffect));
+
+        // Walk the segment so fast moves still leave a continuous trace.
+        const int steps = std::max(1, static_cast<int>(dist));
+        for (int s = 0; s <= steps; ++s) {
+            const float t = static_cast<float>(s) / static_cast<float>(steps);
+            const float px = x0 + dx * t;
+            const float py = y0 + dy * t;
+
+            const int cx = static_cast<int>(px);
+            const int cy = static_cast<int>(py);
+            for (int oy = -reach; oy <= reach; ++oy) {
+                const int Y = cy + oy;
+                if (Y < 0 || Y >= size) continue;
+                for (int ox = -reach; ox <= reach; ++ox) {
+                    const int X = cx + ox;
+                    if (X < 0 || X >= size) continue;
+                    const float ddx = X - px, ddy = Y - py;
+                    const float d2 = ddx * ddx + ddy * ddy;
+                    energy[static_cast<size_t>(Y) * size + X] +=
+                        bright * (std::exp(-d2 / (2.0f * core * core)) +
+                                  m_phosphor.glowIntensity *
+                                  std::exp(-d2 / (2.0f * halo * halo)));
+                }
+            }
+        }
+    }
+
+    // Normalise against a high percentile so a few very bright pixels do not
+    // wash the whole trace out.
+    std::vector<float> sorted;
+    sorted.reserve(energy.size() / 8 + 1);
+    for (size_t i = 0; i < energy.size(); i += 8) {
+        if (energy[i] > 0.0f) sorted.push_back(energy[i]);
+    }
+    float ref = 1.0f;
+    if (!sorted.empty()) {
+        size_t idx = static_cast<size_t>(sorted.size() * 0.98);
+        if (idx >= sorted.size()) idx = sorted.size() - 1;
+        std::nth_element(sorted.begin(), sorted.begin() + idx, sorted.end());
+        ref = std::max(1e-6f, sorted[idx]);
+    }
+
+    std::vector<unsigned char> rgba(static_cast<size_t>(size) * size * 4);
+    for (size_t i = 0; i < energy.size(); ++i) {
+        float e = std::min(1.0f, energy[i] / ref);
+        e = std::pow(e, 1.0f / std::max(0.1f, m_phosphor.decayExponent * 0.7f));
+
+        // Dark CRT ground plus the phosphor colour scaled by beam energy.
+        const float r = 0.02f + e * m_phosphor.colorR;
+        const float g = 0.03f + e * m_phosphor.colorG;
+        const float b = 0.02f + e * m_phosphor.colorB;
+
+        rgba[i * 4 + 0] = static_cast<unsigned char>(std::min(1.0f, r) * 255.0f);
+        rgba[i * 4 + 1] = static_cast<unsigned char>(std::min(1.0f, g) * 255.0f);
+        rgba[i * 4 + 2] = static_cast<unsigned char>(std::min(1.0f, b) * 255.0f);
+        rgba[i * 4 + 3] = 255;
+    }
+
+    if (writePng(path, rgba.data(), size, size)) {
+        setStatus("Exported " + std::to_string(size) + "x" +
+                  std::to_string(size) + " image");
+    } else {
+        setStatus("Failed to write " + path, true);
+    }
+}
+
 void UIManager::renderMenuBar(App& app) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
@@ -826,10 +1066,54 @@ void UIManager::renderMenuBar(App& app) {
             if (ImGui::MenuItem("Save Pattern...", "Ctrl+S")) {
                 doSavePattern(app);
             }
+
+            // Recent files: pattern, preset and sequence files alike, opened
+            // by whichever loader matches the extension.
+            if (ImGui::BeginMenu("Open Recent", !m_recentFiles.empty())) {
+                std::string chosen;
+                for (const auto& entry : m_recentFiles.entries()) {
+                    std::string label = RecentFiles::displayName(entry);
+                    if (ImGui::MenuItem(label.c_str())) chosen = entry;
+                    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", entry.c_str());
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Clear List")) {
+                    m_recentFiles.clear();
+                    saveRecentFiles();
+                }
+                ImGui::EndMenu();
+
+                // Acted on outside the loop so the menu is not mutated mid-iteration.
+                if (!chosen.empty()) {
+                    std::string ext = fileExtension(chosen);
+                    if (ext == ".opreset")   loadPresetFile(app, chosen);
+                    else if (ext == ".oseq") loadSequenceFile(chosen);
+                    else                     loadPatternFile(app, chosen);
+                }
+            }
+
+            ImGui::Separator();
+            if (ImGui::MenuItem("Save Preset...")) {
+                doSavePreset(app);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Saves the pattern together with every effect setting");
+            }
+            if (ImGui::MenuItem("Load Preset...")) {
+                doLoadPreset(app);
+            }
+
             ImGui::Separator();
             if (ImGui::MenuItem("Export WAV...", "Ctrl+E")) {
                 doExportWav(app);
             }
+            if (ImGui::MenuItem("Export Image...", "Ctrl+I")) {
+                doExportImage(app);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Render the scope view to a PNG");
+            }
+
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Alt+F4")) {
                 app.requestExit();
@@ -901,6 +1185,7 @@ void UIManager::renderMenuBar(App& app) {
         if (ImGui::IsKeyPressed(ImGuiKey_O, false)) doLoadPattern(app);
         if (ImGui::IsKeyPressed(ImGuiKey_S, false)) doSavePattern(app);
         if (ImGui::IsKeyPressed(ImGuiKey_E, false)) doExportWav(app);
+        if (ImGui::IsKeyPressed(ImGuiKey_I, false)) doExportImage(app);
     }
 
     if (m_showAbout) {
@@ -1289,6 +1574,55 @@ void UIManager::renderEffectsPanel(App& app) {
     placeWindow(0.718f, 0.008f, 0.276f, 0.475f);
     ImGui::Begin("Effects", &m_showEffectsPanel);
 
+    //--------------------------------------------------------------------------
+    // Master controls: bypass everything at once, or return to defaults. There
+    // was previously no way to clear the chain without visiting every section.
+    //--------------------------------------------------------------------------
+    if (ImGui::Checkbox("Bypass All", &m_effectsBypassed)) {
+        if (m_effectsBypassed) {
+            // Remember the live settings so the switch is non-destructive.
+            captureEffects(fx, m_bypassSnapshot);
+            Preset silent;                 // no keys -> every effect defaults off
+            applyEffects(silent, fx);
+        } else {
+            applyEffects(m_bypassSnapshot, fx);
+        }
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Silence every effect without losing the settings");
+    }
+    ImGui::SameLine();
+
+    if (ImGui::Button("Reset All")) {
+        ImGui::OpenPopup("Reset all effects?");
+    }
+    if (ImGui::BeginPopupModal("Reset all effects?", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Return every effect to its default? This cannot be undone.");
+        ImGui::Spacing();
+        if (ImGui::Button("Reset", ImVec2(120, 0))) {
+            Preset defaults;               // empty preset == all defaults
+            applyEffects(defaults, fx);
+            m_effectsBypassed = false;
+            m_bypassSnapshot = Preset{};
+            setStatus("Effects reset to defaults");
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    if (m_effectsBypassed) {
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "All effects bypassed");
+    }
+    ImGui::Separator();
+
+    // While bypassed the individual controls would write into settings that are
+    // not in use, which reads as broken; show them disabled instead.
+    if (m_effectsBypassed) ImGui::BeginDisabled();
+
     // ROTATION
     if (ImGui::CollapsingHeader("Rotation", ImGuiTreeNodeFlags_DefaultOpen)) {
         int rotationMode = static_cast<int>(fx.rotationMode.load(std::memory_order_relaxed));
@@ -1467,6 +1801,8 @@ void UIManager::renderEffectsPanel(App& app) {
         bool mirrorY = fx.mirrorY.load(std::memory_order_relaxed);
         if (ImGui::Checkbox("Mirror Y (Flip Vertical)", &mirrorY)) fx.mirrorY.store(mirrorY, std::memory_order_relaxed);
     }
+
+    if (m_effectsBypassed) ImGui::EndDisabled();
 
     ImGui::End();
 }
@@ -3016,6 +3352,16 @@ void UIManager::renderSoundPad(App& app) {
     ImGui::Separator();
 
     bool padChanged = false;
+    // Snapshot taken lazily: only the first edit of a drag records history, so
+    // dragging a cell produces one undo entry rather than one per frame.
+    bool padSnapshotTaken = false;
+    auto snapshotPad = [&]() {
+        if (!padSnapshotTaken) {
+            m_padUndo.push(m_soundPad);
+            padSnapshotTaken = true;
+        }
+    };
+
     float buttonSize = 60.0f;
     for (int row = 0; row < SoundPadState::GRID_SIZE; ++row) {
         for (int col = 0; col < SoundPadState::GRID_SIZE; ++col) {
@@ -3028,12 +3374,17 @@ void UIManager::renderSoundPad(App& app) {
             char label[32];
             snprintf(label, sizeof(label), "%d\n%.1f,%.1f", idx + 1, m_soundPad.x[idx], m_soundPad.y[idx]);
             if (ImGui::Button(label, ImVec2(buttonSize, buttonSize))) {
+                snapshotPad();
                 m_soundPad.active[idx] = !m_soundPad.active[idx];
                 padChanged = true;
             }
             ImGui::PopStyleColor();
 
             if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0)) {
+                if (ImGui::IsMouseClicked(0) || !m_padDragging) {
+                    snapshotPad();
+                    m_padDragging = true;
+                }
                 ImVec2 delta = ImGui::GetMouseDragDelta(0);
                 m_soundPad.x[idx] = std::clamp(m_soundPad.x[idx] + delta.x * 0.01f, -1.0f, 1.0f);
                 m_soundPad.y[idx] = std::clamp(m_soundPad.y[idx] - delta.y * 0.01f, -1.0f, 1.0f);
@@ -3043,22 +3394,60 @@ void UIManager::renderSoundPad(App& app) {
         }
     }
 
+    if (!ImGui::IsMouseDown(0)) m_padDragging = false;
+
+    ImGui::Separator();
+
+    // Undo / Redo
+    {
+        float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+        if (!m_padUndo.canUndo()) ImGui::BeginDisabled();
+        if (ImGui::Button("Undo", ImVec2(w, 0))) {
+            if (const SoundPadState* prev = m_padUndo.undo(m_soundPad)) {
+                m_soundPad = *prev;
+                padChanged = true;
+            }
+        }
+        if (!m_padUndo.canUndo()) ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (!m_padUndo.canRedo()) ImGui::BeginDisabled();
+        if (ImGui::Button("Redo", ImVec2(w, 0))) {
+            if (const SoundPadState* next = m_padUndo.redo(m_soundPad)) {
+                m_soundPad = *next;
+                padChanged = true;
+            }
+        }
+        if (!m_padUndo.canRedo()) ImGui::EndDisabled();
+
+        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+            ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+            if (const SoundPadState* prev = m_padUndo.undo(m_soundPad)) {
+                m_soundPad = *prev;
+                padChanged = true;
+            }
+        }
+    }
+
     ImGui::Separator();
     if (ImGui::Button("Circle Preset", ImVec2(-1, 0))) {
+        snapshotPad();
         m_soundPad.resetToCircle();
         padChanged = true;
     }
     if (ImGui::Button("Activate All", ImVec2(-1, 0))) {
+        snapshotPad();
         for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) m_soundPad.active[i] = true;
         padChanged = true;
     }
     if (ImGui::Button("Grid Layout", ImVec2(-1, 0))) {
+        snapshotPad();
         m_soundPad.gridLayout();
         padChanged = true;
     }
     if (ImGui::Button("Clear All", ImVec2(-1, 0))) {
         // Deactivate only - the point positions stay put, so switching cells
         // back on still draws something.
+        snapshotPad();
         for (int i = 0; i < SoundPadState::NUM_STEPS; ++i) m_soundPad.active[i] = false;
         padChanged = true;
     }

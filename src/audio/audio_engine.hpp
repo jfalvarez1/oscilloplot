@@ -134,6 +134,15 @@ public:
     void setPattern(const Pattern& pattern);
 
     // Audio parameters
+    // Swap in a new pattern WITHOUT restarting the playback position.
+    //
+    // setPattern() rewinds to sample 0, which is right when the user picks a
+    // new pattern but wrong for crossfading: called every UI frame it would
+    // pin the position near zero, stall the pattern-cycle counter that drives
+    // step timing, and click on every swap. The audio callback indexes with
+    // `% patternSize`, so a position beyond the new length wraps safely.
+    void setPatternContinuous(const Pattern& pattern);
+
     void setSampleRate(int baseRate, int multiplier);
     int getActualSampleRate() const { return m_actualSampleRate; }
 

@@ -7,6 +7,10 @@
 #include "vectorizer/image_vectorizer.hpp"
 #include "data/obj_loader.hpp"
 #include "data/pattern.hpp"
+#include "data/preset.hpp"
+#include "data/recent_files.hpp"
+#include "data/sequence.hpp"
+#include "utils/undo_stack.hpp"
 
 namespace oscilloplot {
 
@@ -239,20 +243,16 @@ struct Shape3DState {
 };
 
 //==============================================================================
-// Sequencer State - chains patterns over time
+// Sequencer State - chains patterns over time.
+// The step list and its file format live in data/sequence.hpp; this holds only
+// the transient playback position.
 //==============================================================================
-struct SequenceStep {
-    Pattern pattern;
-    int cycles = 200;               // Pattern repetitions before advancing
-    char name[32] = "Step";
-};
-
 struct SequencerState {
-    std::vector<SequenceStep> steps;
+    Sequence seq;                   // Steps, loop flag and crossfade amount
     bool playing = false;           // Sequence playback active
-    bool loop = true;               // Wrap to step 0 at the end
     int currentStep = -1;           // Index while playing, -1 otherwise
     uint32_t cyclesAtStepStart = 0; // Engine cycle count when this step began
+    Pattern blendScratch;           // Reused so crossfading allocates nothing
 };
 
 //==============================================================================
@@ -300,6 +300,27 @@ private:
     void doLoadPattern(App& app);
     void doSavePattern(App& app);
     void doExportWav(App& app);
+    void doExportImage(App& app);
+
+    // Load a pattern file by path (shared by the dialog and the recent list)
+    bool loadPatternFile(App& app, const std::string& path);
+
+    // Presets: pattern + effect settings together
+    void doSavePreset(App& app);
+    void doLoadPreset(App& app);
+    void loadPresetFile(App& app, const std::string& path);
+
+    // Recent files, persisted beside imgui.ini
+    RecentFiles m_recentFiles;
+    void loadRecentFiles();
+    void saveRecentFiles() const;
+    static std::string recentFilesPath();
+
+    // Undo history for the editors that mutate a list in place
+    UndoStack<DrawingState> m_canvasUndo;
+    UndoStack<SoundPadState> m_padUndo;
+    UndoStack<Sequence> m_sequencerUndo;
+    void loadSequenceFile(const std::string& path);
 
     // Visual style and default layout
     void applyStyle();
@@ -357,6 +378,16 @@ private:
 
     // Phosphor display
     PhosphorSettings m_phosphor;
+    int m_exportImageSize = 1024;   // Square edge length for Export Image
+
+    // Effects master bypass. The snapshot holds the settings that were live
+    // when bypass was switched on, so turning it off restores them.
+    bool m_effectsBypassed = false;
+    Preset m_bypassSnapshot;
+
+    // True while a sound pad cell is being dragged, so the whole drag makes
+    // a single undo entry instead of one per frame.
+    bool m_padDragging = false;
 
     // Visualization buffers
     static constexpr size_t VIZ_SAMPLES = 16384;
