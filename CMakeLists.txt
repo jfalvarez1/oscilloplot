@@ -396,7 +396,10 @@ endif()
 # Install Configuration
 #===============================================================================
 
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
+# BUNDLE DESTINATION is required once MACOSX_BUNDLE is set on the target.
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION bin
+    BUNDLE  DESTINATION .)
 install(DIRECTORY assets/ DESTINATION share/${PROJECT_NAME}/assets)
 
 #===============================================================================
@@ -407,7 +410,11 @@ message(STATUS "")
 message(STATUS "=== Oscilloplot Build Configuration ===")
 message(STATUS "Version:        ${PROJECT_VERSION}")
 message(STATUS "Build Type:     ${CMAKE_BUILD_TYPE}")
-message(STATUS "SIMD Enabled:   ${OSCILLOPLOT_ENABLE_SIMD} (${OSCILLOPLOT_SIMD_LEVEL})")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64|ARM64")
+    message(STATUS "SIMD Enabled:   ${OSCILLOPLOT_ENABLE_SIMD} (NEON baseline)")
+else()
+    message(STATUS "SIMD Enabled:   ${OSCILLOPLOT_ENABLE_SIMD} (${OSCILLOPLOT_SIMD_LEVEL})")
+endif()
 message(STATUS "Standalone:     ${OSCILLOPLOT_STANDALONE}")
 message(STATUS "vcpkg Triplet:  ${VCPKG_TARGET_TRIPLET}")
 message(STATUS "LTO Enabled:    ${OSCILLOPLOT_ENABLE_LTO}")
