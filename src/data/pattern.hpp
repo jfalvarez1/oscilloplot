@@ -5,6 +5,12 @@
 
 namespace oscilloplot {
 
+// Hard cap on a single pattern. The audio engine holds its pattern in a fixed
+// buffer of this size, so anything longer is truncated on playback; keeping the
+// limit here lets non-audio code (file loaders, sequence I/O) reject or warn
+// about oversized input without depending on the audio layer.
+constexpr size_t MAX_PATTERN_POINTS = 65536;
+
 struct Pattern {
     std::vector<float> x;
     std::vector<float> y;

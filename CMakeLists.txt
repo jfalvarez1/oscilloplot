@@ -185,6 +185,9 @@ set(APP_SOURCES
     src/data/file_loader.cpp
     src/data/file_saver.cpp
     src/data/obj_loader.cpp
+    src/data/sequence.cpp
+    src/data/preset.cpp
+    src/data/recent_files.cpp
     src/vectorizer/image_vectorizer.cpp
 )
 
@@ -390,6 +393,57 @@ if(UNIX AND NOT APPLE)
         pthread
         dl
     )
+endif()
+
+#===============================================================================
+# Tests
+#
+# The suite covers the pure logic - patterns, file formats, OBJ import,
+# sequences, presets, undo, DSP and generators. Anything needing a window or an
+# audio device is out of scope here and is covered by the manual test plan in
+# tests/TEST_PLAN.md.
+#===============================================================================
+
+option(OSCILLOPLOT_BUILD_TESTS "Build the unit test suite" ON)
+
+if(OSCILLOPLOT_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(oscilloplot_tests
+        tests/test_main.cpp
+        tests/test_data.cpp
+        tests/test_dsp.cpp
+        src/data/pattern.cpp
+        src/data/file_loader.cpp
+        src/data/file_saver.cpp
+        src/data/obj_loader.cpp
+        src/data/sequence.cpp
+        src/data/preset.cpp
+        src/data/recent_files.cpp
+        src/generators/test_pattern.cpp
+        src/generators/harmonics.cpp
+        src/generators/spiral.cpp
+        src/generators/random_harmonics.cpp
+    )
+
+    target_include_directories(oscilloplot_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests
+    )
+
+    # preset.cpp pulls in EffectParams, which lives in the audio header and so
+    # needs PortAudio's headers - but not the library, since no stream is opened.
+    target_link_libraries(oscilloplot_tests PRIVATE ${PORTAUDIO_LINK_TARGET})
+
+    if(MSVC)
+        target_compile_options(oscilloplot_tests PRIVATE /W4 /wd4324 /MP)
+        target_compile_definitions(oscilloplot_tests PRIVATE
+            _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    else()
+        target_compile_options(oscilloplot_tests PRIVATE -Wall -Wextra)
+    endif()
+
+    add_test(NAME unit COMMAND oscilloplot_tests)
 endif()
 
 #===============================================================================

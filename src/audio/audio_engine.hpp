@@ -107,7 +107,7 @@ struct alignas(64) EffectParams {
 class AudioEngine {
 public:
     static constexpr size_t BUFFER_FRAMES = 256;
-    static constexpr size_t MAX_PATTERN_SIZE = 65536;
+    static constexpr size_t MAX_PATTERN_SIZE = MAX_PATTERN_POINTS;
     static constexpr size_t MAX_ECHO_SAMPLES = 32768;  // For echo delay buffer
 
     AudioEngine();
